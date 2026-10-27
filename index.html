@@ -735,6 +735,7 @@ html.night .slit { background: #050505; box-shadow: 0 1px 0 rgba(255, 255, 255, 
   text-underline-offset: 4px;
 }
 .form-toggle:hover { color: var(--ink); }
+.form-toggle[hidden] { display: none; }
 
 .form {
   margin-top: 1.5rem;
@@ -1214,8 +1215,9 @@ html.night .step-number { color: #e9b276; }
         <div class="actions">
           <a class="btn btn-primary" data-telegram-button>Написать в Telegram</a>
         </div>
-        <p class="contact-alt">Или в <a data-instagram-link>Instagram</a></p>
-        <button type="button" class="form-toggle" aria-expanded="false" aria-controls="request-form">Нет Telegram? Оставьте заявку</button>
+        <p class="contact-alt">Или в <a data-instagram-link>Instagram</a> или на почту <a data-email-link></a></p>
+        <!-- Форма выключена: заявки из неё пока некуда отправлять (бриф, раздел 9, вопрос 3). -->
+        <button type="button" class="form-toggle" hidden aria-expanded="false" aria-controls="request-form">Нет Telegram? Оставьте заявку</button>
 
         <form id="request-form" class="form" novalidate hidden>
           <div class="field">
@@ -1257,6 +1259,7 @@ const site = {
   telegram: "stvnislvvv",
   // Instagram без @.
   instagram: "stvnislv",
+  email: "stvnislv@gmail.com",
 
   hero: {
     title: "Сайты, приложения и ИИ‑агенты",
@@ -1376,6 +1379,11 @@ document.querySelectorAll("[data-instagram-link]").forEach((link) => {
   link.target = "_blank";
   link.rel = "noopener noreferrer";
   if (!link.textContent) link.textContent = `Instagram: @${site.instagram}`;
+});
+// Почта в контактах: посетитель сам пишет письмо, сайт ничего не собирает.
+document.querySelectorAll("[data-email-link]").forEach((link) => {
+  link.href = `mailto:${site.email}`;
+  link.textContent = site.email;
 });
 
 // Меню
