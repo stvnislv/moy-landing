@@ -1,0 +1,10 @@
+# Публикация на Netlify: в интернет попадают только index.html и hero-bg.jpg.
+# Бриф, исследование и старая Next.js-версия остаются только в репозитории.
+[build]
+  command = "mkdir -p _site && cp index.html hero-bg.jpg _site/"
+  publish = "_site"
+
+[build.environment]
+  # Не собирать старую Next.js-версию из package.json.
+  NETLIFY_NEXT_PLUGIN_SKIP = "true"
+  NPM_FLAGS = "--version"
