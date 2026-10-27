@@ -18,6 +18,11 @@
 
 Осталась от первой спецификации и не обновлялась по `brief.md`. Удалить её или держать как архив — открытый вопрос 5 брифа; до ответа не трогать.
 
+## Git
+
+- Репозиторий: https://github.com/stvnislv/moy-landing, ветка `main`, remote `origin` (SSH, ключ `~/.ssh/id_ed25519`).
+- После каждого изменения: коммит с коротким описанием по-русски и `git push origin main`. Без force-push.
+
 ## Commands
 
 Node.js стоит в `~/.local/node`, а не в системе. Перед командами: `export PATH=~/.local/node/bin:$PATH`.
