@@ -128,7 +128,7 @@ html.night .hero-bg-img { opacity: 0; }
   top: var(--slit-y, 26%);
   left: calc(var(--slit-x, 40.75%) - var(--slit-w, 18.5%) * 1.75);
   width: calc(var(--slit-w, 18.5%) * 4.5);
-  height: 90%;
+  height: 100%;
   filter: blur(22px);
   mix-blend-mode: screen;
   opacity: 0.55;
@@ -141,12 +141,12 @@ html.night .hero-bg-img { opacity: 0; }
   inset: 0;
   clip-path: polygon(38.9% 0, 61.1% 0, 100% 100%, 0 100%);
   background:
-    radial-gradient(50% 70% at 50% 0%, rgba(255, 196, 120, 0.55), rgba(255, 196, 120, 0) 70%),
+    radial-gradient(50% 70% at 50% 0%, rgba(255, 196, 120, 0.6), rgba(255, 196, 120, 0) 70%),
     linear-gradient(90deg,
-      rgba(255, 240, 220, 0) 0%, rgba(255, 228, 192, 0.14) 14%, rgba(255, 210, 150, 0.32) 30%, rgba(255, 190, 120, 0.52) 42%,
-      rgba(255, 170, 92, 0.7) 50%, rgba(255, 190, 120, 0.52) 58%, rgba(255, 210, 150, 0.32) 70%, rgba(255, 228, 192, 0.14) 86%, rgba(255, 240, 220, 0) 100%);
-  -webkit-mask-image: linear-gradient(to bottom, #000, rgba(0, 0, 0, 0.6) 40%, transparent 95%);
-  mask-image: linear-gradient(to bottom, #000, rgba(0, 0, 0, 0.6) 40%, transparent 95%);
+      rgba(255, 240, 220, 0) 0%, rgba(255, 228, 192, 0.155) 14%, rgba(255, 210, 150, 0.35) 30%, rgba(255, 190, 120, 0.57) 42%,
+      rgba(255, 170, 92, 0.77) 50%, rgba(255, 190, 120, 0.57) 58%, rgba(255, 210, 150, 0.35) 70%, rgba(255, 228, 192, 0.155) 86%, rgba(255, 240, 220, 0) 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000, rgba(0, 0, 0, 0.65) 40%, transparent 97%);
+  mask-image: linear-gradient(to bottom, #000, rgba(0, 0, 0, 0.65) 40%, transparent 97%);
 }
 html.night .slit-beam { opacity: 0.95; }
 .slit-cone, .slit-rays, .slit-flare { display: none; }
@@ -301,13 +301,17 @@ html.night .slit { background: #050505; box-shadow: 0 1px 0 rgba(255, 255, 255, 
 /* Низ картинки становится прозрачным и растворяется в фоне страницы, без границы. */
 /* Фон, линия и свет из щели. Положение линии на картинке скрипт пересчитывает
    в переменные --slit-x, --slit-y, --slit-w при любом размере окна. */
+/* Слой со светом выходит ниже первого экрана на --beam-ext, чтобы луч продолжался
+   по странице. Картинка остаётся в пределах первого экрана (bottom у .hero-bg-img). */
+.hero { --beam-ext: 20vh; }
 .hero-bg {
   position: absolute;
-  inset: 0;
+  inset: 0 0 calc(var(--beam-ext) * -1) 0;
   z-index: -1;
   overflow: hidden;
-  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 62%, transparent 100%);
   transform: translate3d(0, calc(var(--hero-p, 0) * 18vh), 0);
 }
 @property --pour {
@@ -317,11 +321,23 @@ html.night .slit { background: #050505; box-shadow: 0 1px 0 rgba(255, 255, 255, 
 }
 .hero-bg-img {
   position: absolute;
-  inset: 0;
+  inset: 0 0 var(--beam-ext) 0;
   background: url("hero-bg.jpg") center / cover no-repeat;
-  /* Тень «стекает» сверху вниз: маска открывает картинку до уровня --pour. */
-  -webkit-mask-image: linear-gradient(to bottom, #000 var(--pour), transparent calc(var(--pour) + 25%));
-  mask-image: linear-gradient(to bottom, #000 var(--pour), transparent calc(var(--pour) + 25%));
+  /* Тень «стекает» сверху вниз: маска открывает картинку до уровня --pour.
+     Вторая маска растворяет низ картинки в фоне страницы. */
+  -webkit-mask-image: linear-gradient(to bottom, #000 var(--pour), transparent calc(var(--pour) + 25%)), linear-gradient(to bottom, #000 62%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to bottom, #000 var(--pour), transparent calc(var(--pour) + 25%)), linear-gradient(to bottom, #000 62%, transparent 100%);
+  mask-composite: intersect;
+}
+/* Тень на картинке на 10% глубже: та же картинка поверх себя в режиме умножения. */
+.hero-bg-img::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: inherit;
+  mix-blend-mode: multiply;
+  opacity: 0.18;
 }
 .slit,
 .slit-light,
@@ -1549,9 +1565,10 @@ document.querySelectorAll(".reveal").forEach((node) => revealed.observe(node));
 const SLIT = { imageW: 2576, imageH: 1449, left: 0.4075, width: 0.185, top: 0.2595 };
 const heroSection = document.querySelector(".hero");
 const heroBg = document.querySelector(".hero-bg");
+const heroBgImg = document.querySelector(".hero-bg-img");
 function placeSlit() {
-  const w = heroBg.clientWidth;
-  const h = heroBg.clientHeight;
+  const w = heroBgImg.clientWidth;
+  const h = heroBgImg.clientHeight;
   const scale = Math.max(w / SLIT.imageW, h / SLIT.imageH);
   const offsetX = (w - SLIT.imageW * scale) / 2;
   const offsetY = (h - SLIT.imageH * scale) / 2;
