@@ -1784,12 +1784,12 @@ function drawThreads() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const w = threadsView.w, h = threadsView.h;
   const night = isNight();
-  const ink = night ? "237, 235, 231" : "29, 30, 32";
+  const ink = night ? "237, 235, 231" : "10, 10, 12";   // днём линии почти чёрные
   const scale = w / PORTRAIT.w;
   const rows = Math.round(h / 2.1);               // нити через ~2 px
   const gap = h / rows;
   ctx.clearRect(0, 0, w, h);
-  ctx.lineWidth = night ? 0.42 : 0.46;
+  ctx.lineWidth = night ? 0.42 : 0.52;
   ctx.lineCap = "round";
   // Нити группируются по прозрачности: так рисуется быстрее.
   const buckets = Array.from({ length: 12 }, () => new Path2D());
@@ -1801,7 +1801,8 @@ function drawThreads() {
       const [lum, alpha] = sample(x / scale, baseY / scale);
       if (alpha < 0.15) { prev = null; continue; }
       // Днём нити рисуют тени, ночью свет.
-      const tone = night ? Math.pow(lum, 1.05) : Math.pow(1 - lum, 1.05);
+      // днём контраст выше: тёмные места темнее, светлые остаются светлыми
+      const tone = night ? Math.pow(lum, 1.05) : Math.min(1, Math.max(0, 0.5 + (Math.pow(1 - lum, 1.05) - 0.5) * 1.4));
       phase += (0.16 + tone * 1.35) * 0.6;
       const y = baseY + Math.sin(phase) * gap * 0.55 * (0.1 + tone * 0.9);
       if (prev) {
@@ -2003,82 +2004,141 @@ function tube(ctx, pts, width, dark, mid, light) {
   ctx.strokeStyle = light; ctx.lineWidth = width * 0.22; ctx.stroke(path);
   ctx.restore();
 }
+// ---- Липкие нити для сердца и нейронов: лента переменной толщины, как у нитей к курсору ----
+function gooRibbon(ctx, pts, widthAt) {
+  const n = pts.length, L = [], R = [];
+  for (let i = 0; i < n; i++) {
+    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)];
+    let tx = b[0] - a[0], ty = b[1] - a[1]; const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+    const hw = widthAt(i) / 2;
+    L.push([pts[i][0] - ty * hw, pts[i][1] + tx * hw]);
+    R.push([pts[i][0] + ty * hw, pts[i][1] - tx * hw]);
+  }
+  ctx.beginPath();
+  ctx.moveTo(L[0][0], L[0][1]);
+  for (let i = 1; i < n - 1; i++) ctx.quadraticCurveTo(L[i][0], L[i][1], (L[i][0] + L[i + 1][0]) / 2, (L[i][1] + L[i + 1][1]) / 2);
+  ctx.lineTo(L[n - 1][0], L[n - 1][1]);
+  ctx.lineTo(R[n - 1][0], R[n - 1][1]);
+  for (let i = n - 2; i > 0; i--) ctx.quadraticCurveTo(R[i][0], R[i][1], (R[i][0] + R[i - 1][0]) / 2, (R[i][1] + R[i - 1][1]) / 2);
+  ctx.lineTo(R[0][0], R[0][1]);
+  ctx.closePath();
+  ctx.fill();
+}
+// Плавная кривая через точки (Catmull-Rom) — частые точки для лент.
+function sampleCurve(pts, closed, per) {
+  const n = pts.length, out = [];
+  const segs = closed ? n : n - 1;
+  for (let i = 0; i < segs; i++) {
+    const p0 = pts[closed ? (i - 1 + n) % n : Math.max(0, i - 1)], p1 = pts[i % n];
+    const p2 = pts[(i + 1) % n], p3 = pts[closed ? (i + 2) % n : Math.min(n - 1, i + 2)];
+    for (let k = 0; k < per; k++) {
+      const t = k / per, t2 = t * t, t3 = t2 * t;
+      out.push([0, 1].map((c) => 0.5 * (2 * p1[c] + (-p0[c] + p2[c]) * t + (2 * p0[c] - 5 * p1[c] + 4 * p2[c] - p3[c]) * t2 + (-p0[c] + 3 * p1[c] - 3 * p2[c] + p3[c]) * t3)));
+    }
+  }
+  out.push(closed ? out[0].slice() : pts[n - 1].slice());
+  return out;
+}
+function curveNormals(d) {
+  return d.map((_, i) => {
+    const a = d[Math.max(0, i - 1)], b = d[Math.min(d.length - 1, i + 1)];
+    const tx = b[0] - a[0], ty = b[1] - a[1], l = Math.hypot(tx, ty) || 1;
+    return [-ty / l, tx / l];
+  });
+}
+// Связь между нейронами — провисающая нить, которая медленно покачивается.
+function synapseCurve(ai, bi, time, w, h) {
+  const i = Math.min(ai, bi), j = Math.max(ai, bi);
+  const a = neurons[i], c = neurons[j];
+  const ax = a.x * w, ay = a.y * h, cx = c.x * w, cy = c.y * h;
+  const dx = cx - ax, dy = cy - ay, len = Math.hypot(dx, dy) || 1;
+  const seed = i * 7.31 + j * 3.17;
+  const sway = Math.sin(time / 900 + seed) * len * 0.16 + Math.sin(time / 1700 + seed * 2) * len * 0.06;
+  const mx = (ax + cx) / 2 - (dy / len) * sway, my = (ay + cy) / 2 + (dx / len) * sway + len * 0.1;
+  const pts = [];
+  for (let k = 0; k <= 10; k++) {
+    const t = k / 10;
+    pts.push([(1 - t) * (1 - t) * ax + 2 * (1 - t) * t * mx + t * t * cx, (1 - t) * (1 - t) * ay + 2 * (1 - t) * t * my + t * t * cy]);
+  }
+  return { pts, flip: ai !== i };
+}
+// Сердце из липких нитей: каждая часть — пучок неровных глянцевых нитей, которые шевелятся
+// и вздуваются на каждом ударе.
 function drawHeart(ctx, x, y, unit, beat, time, night) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(-0.25);
   ctx.scale(unit * (1 + beat * 0.06), unit * (1 + beat * 0.09));
   ctx.globalCompositeOperation = night ? "lighter" : "source-over";
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  const glow = 0.55 + beat * 0.45;
-  // Мягкий ореол под нитями.
   const aura = ctx.createRadialGradient(0, 18, 6, 0, 18, 80);
   aura.addColorStop(0, `rgba(255, 40, 60, ${0.18 + beat * 0.22})`);
   aura.addColorStop(1, "rgba(255, 40, 60, 0)");
   ctx.fillStyle = aura;
   ctx.beginPath(); ctx.arc(0, 18, 80, 0, Math.PI * 2); ctx.fill();
-
-  // Пучок нитей вдоль формы: каждая нить чуть смещена и дышит по-своему.
-  const bundle = (pts, closed, strands, spread, width, alpha) => {
-    for (let k = 0; k < strands; k++) {
-      const off = (k / (strands - 1 || 1) - 0.5) * spread;
-      const line = pts.map(([px, py], i) => [
-        px + off * 0.7 + Math.sin(i * 1.7 + k * 0.9 + time / 480) * 0.45,
-        py + off + Math.cos(i * 1.3 + k * 1.4 + time / 560) * 0.45,
-      ]);
-      const warm = 60 + Math.round((k / strands) * 120);
-      ctx.strokeStyle = `rgba(255, ${warm}, ${warm + 10}, ${alpha * glow})`;
-      ctx.lineWidth = width;
-      ctx.stroke(smoothPath(line, closed));
+  const px = 1 / unit;                               // один экранный пиксель в единицах сердца
+  const red = night ? "255, 96, 108" : "198, 32, 50";
+  const hi = night ? "255, 225, 225" : "255, 180, 185";
+  ctx.shadowColor = "rgba(255, 45, 70, 0.8)";
+  ctx.shadowBlur = 4 + beat * 8;
+  const strands = (pts, closed, count, spread, width, alpha, seed) => {
+    const d = sampleCurve(pts, closed, 6), nr = curveNormals(d);
+    for (let k = 0; k < count; k++) {
+      const off = (k / (count - 1 || 1) - 0.5) * spread;
+      const ph = seed * 2.3 + k * 1.9;
+      const line = d.map(([x0, y0], i) => {
+        const wob = Math.sin(i * 0.33 + ph + time / 430) * 1.3 + Math.sin(i * 0.85 + ph * 0.7 + time / 270) * 0.55;
+        return [x0 + nr[i][0] * (off + wob), y0 + nr[i][1] * (off + wob)];
+      });
+      const wk = width * (0.7 + 0.6 * (((k * 37 + seed * 13) % 7) / 7));
+      ctx.fillStyle = `rgba(${red}, ${alpha})`;
+      gooRibbon(ctx, line, (i) => Math.max(0.35 * px, wk * px * (1 + 0.3 * Math.sin(i * 0.45 + ph + time / 650)) * (1 + beat * 0.4)));
+      if (wk > 1.3) {                                 // глянцевый блик на толстых нитях
+        ctx.save();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = `rgba(${hi}, ${0.5 * alpha})`;
+        ctx.lineWidth = wk * px * 0.24;
+        ctx.translate(-wk * px * 0.2, -wk * px * 0.2);
+        ctx.beginPath();
+        line.forEach(([lx, ly], i) => (i ? ctx.lineTo(lx, ly) : ctx.moveTo(lx, ly)));
+        ctx.stroke();
+        ctx.restore();
+      }
     }
   };
-  ctx.shadowColor = "rgba(255, 45, 70, 0.95)";
-  ctx.shadowBlur = 6 + beat * 10;
-
-  const [body, atrium, aorta1, aorta2, br1, br2, br3, pulm1, pulm2, vena1, vena2, groove, coronary] = HEART_PARTS;
-  // Сосуды: пучки параллельных нитей.
-  bundle([[-2, -18], [-2, -38], [4, -52], [16, -60], [28, -58], [36, -50], [36, -40], [32, -28]], false, 7, 9, 0.5 / unit, 0.75);
-  for (const b of [br1, br2, br3]) bundle(b.pts, false, 3, 3.5, 0.45 / unit, 0.7);
-  bundle(pulm1.pts, false, 5, 7, 0.45 / unit, 0.6);
-  bundle(pulm2.pts, false, 4, 5, 0.45 / unit, 0.55);
-  bundle([[-20, -26], ...vena1.pts.slice(1)], false, 5, 7, 0.45 / unit, 0.5);
-  bundle(atrium.pts.concat([[-22, -16], [-30, -10]]), true, 5, 4, 0.45 / unit, 0.6);
-  // Контур желудочков: плотный пучок.
-  bundle(body.pts, true, 9, 6, 0.5 / unit, 0.75);
-
-  // Нити внутри: дуги поперёк формы (дают объём) и волокна вдоль, к верхушке.
+  const [body, atrium, , , br1, br2, br3, pulm1, pulm2, vena1, , groove, coronary] = HEART_PARTS;
+  // сосуды
+  strands([[-2, -18], [-2, -38], [4, -52], [16, -60], [28, -58], [36, -50], [36, -40], [32, -28]], false, 6, 9, 1.6, 0.85, 1);
+  [br1, br2, br3].forEach((b, i) => strands(b.pts, false, 2, 3, 1.1, 0.8, 3 + i));
+  strands(pulm1.pts, false, 4, 6, 1.3, 0.75, 7);
+  strands(pulm2.pts, false, 3, 4, 1.1, 0.7, 8);
+  strands([[-20, -26], ...vena1.pts.slice(1)], false, 4, 6, 1.2, 0.7, 9);
+  strands(atrium.pts.concat([[-22, -16], [-30, -10]]), true, 4, 4, 1.2, 0.75, 10);
+  // волокна внутри желудочков — дают объём
   const bodyPath = smoothPath(body.pts, true);
   ctx.save();
   ctx.clip(bodyPath);
-  ctx.shadowBlur = 3 + beat * 5;
-  for (let i = 0; i < 22; i++) {
-    const yy = -24 + i * 4;
-    const sway = Math.sin(time / 650 + i * 0.7) * 0.8;
-    ctx.beginPath();
-    ctx.moveTo(-52, yy - 8);
-    ctx.quadraticCurveTo(-4 + sway, yy + 12, 52, yy - 12);
-    ctx.strokeStyle = `rgba(255, 110, 120, ${(0.16 + (i % 3 === 0 ? 0.1 : 0)) * glow})`;
-    ctx.lineWidth = 0.4 / unit;
-    ctx.stroke();
-  }
-  for (let i = 0; i < 12; i++) {
-    const sx = -40 + i * 7.5;
-    ctx.beginPath();
-    ctx.moveTo(sx, -26);
-    ctx.quadraticCurveTo(sx * 0.55 + Math.sin(time / 800 + i) * 1.2, 26, 3, 66);
-    ctx.strokeStyle = `rgba(255, 150, 150, ${0.12 * glow})`;
-    ctx.lineWidth = 0.35 / unit;
-    ctx.stroke();
+  ctx.shadowBlur = 2 + beat * 4;
+  for (let i = 0; i < 11; i++) {
+    const yy = -22 + i * 8, sway = Math.sin(time / 650 + i * 0.7) * 2;
+    const line = [];
+    for (let j = 0; j <= 14; j++) {
+      const t = j / 14;
+      line.push([
+        (1 - t) * (1 - t) * -52 + 2 * (1 - t) * t * (-4 + sway) + t * t * 52,
+        (1 - t) * (1 - t) * (yy - 8) + 2 * (1 - t) * t * (yy + 12) + t * t * (yy - 12) + Math.sin(t * 6 + i + time / 500) * 0.8,
+      ]);
+    }
+    ctx.fillStyle = `rgba(${red}, 0.32)`;
+    gooRibbon(ctx, line, (j) => (0.7 + 0.5 * Math.sin(j * 0.8 + i + time / 500)) * px * (1 + beat * 0.4));
   }
   ctx.restore();
-  // Коронарные сосуды — самые яркие нити на поверхности.
-  ctx.shadowBlur = 8 + beat * 8;
-  bundle(groove.pts, false, 2, 1.6, 0.55 / unit, 0.95);
-  bundle(coronary.pts, false, 2, 1.4, 0.5 / unit, 0.85);
+  // контур желудочков — плотный пучок, коронарные сосуды — самые яркие
+  strands(body.pts, true, 7, 6, 1.7, 0.9, 12);
+  ctx.shadowBlur = 6 + beat * 8;
+  strands(groove.pts, false, 2, 1.6, 1.3, 0.95, 14);
+  strands(coronary.pts, false, 2, 1.4, 1.2, 0.9, 15);
   ctx.restore();
 }
-
 // Сила удара: «тук-тук» — два толчка подряд, потом пауза.
 function beatShape(phase) {
   const k = (c, wdt) => Math.exp(-(((phase - c) / wdt) ** 2));
@@ -2102,24 +2162,20 @@ function drawLife(time) {
   // Голова двигается — нейроны вместе с ней.
   const [hdx, hdy] = lifeMotion(PORTRAIT.brain.cx, PORTRAIT.brain.cy, time, w);
   for (const n of neurons) {
-    n.x = n.ox + hdx / w + (moving ? Math.sin(time / 1700 + n.seed) * 0.004 : 0);
-    n.y = n.oy + hdy / h + (moving ? Math.cos(time / 2100 + n.seed * 1.3) * 0.003 : 0);
+    n.x = n.ox + hdx / w + (moving ? Math.sin(time / 1700 + n.seed) * 0.008 : 0);
+    n.y = n.oy + hdy / h + (moving ? Math.cos(time / 2100 + n.seed * 1.3) * 0.006 : 0);
   }
 
-  // Связи: тихие, у курсора ярче.
-  ctx.lineWidth = 0.6;
+  // Связи — липкие нити: провисают, покачиваются, у курсора ярче.
+  const amber = night ? "255, 200, 140" : "214, 130, 60";
   for (const s of synapses) {
     const a = neurons[s.a], c = neurons[s.b];
     const boost = nearCursor((a.x + c.x) / 2, (a.y + c.y) / 2);
-    const alpha = 0.14 + boost * 0.7;
-    ctx.strokeStyle = night ? `rgba(255, 200, 140, ${alpha})` : `rgba(214, 130, 60, ${alpha + 0.04})`;
-    ctx.lineWidth = 0.6 + boost * 0.8;
-    ctx.beginPath();
-    ctx.moveTo(a.x * w, a.y * h);
-    ctx.lineTo(c.x * w, c.y * h);
-    ctx.stroke();
+    if (s.wd == null) s.wd = 0.6 + Math.random() * 1.1;
+    const { pts } = synapseCurve(s.a, s.b, time, w, h);
+    ctx.fillStyle = `rgba(${amber}, ${0.4 + boost * 0.55})`;
+    gooRibbon(ctx, pts, (i) => (s.wd + boost * 0.7) * (1.25 - 0.55 * Math.sin((Math.PI * i) / (pts.length - 1))));
   }
-
   // Свои импульсы: реже без курсора, чаще под курсором.
   const rate = 700 - hover.power * 520;
   if (moving && synapses.length && time - lastFire > rate) {
@@ -2245,19 +2301,22 @@ function drawLife(time) {
   for (const p of pulses) {
     p.t = Math.min(1, p.t + p.speed);
     const a = neurons[p.from], c = neurons[p.to];
-    const tail = Math.max(0, p.t - 0.4);
-    const x0 = (a.x + (c.x - a.x) * tail) * w, y0 = (a.y + (c.y - a.y) * tail) * h;
-    const x1 = (a.x + (c.x - a.x) * p.t) * w, y1 = (a.y + (c.y - a.y) * p.t) * h;
-    const grad = ctx.createLinearGradient(x0, y0, x1, y1);
+    // импульс бежит по изогнутой нити-связи: яркая капля с хвостом
+    const curve = synapseCurve(p.from, p.to, time, w, h);
+    const at = (tt) => {
+      const u = curve.flip ? 1 - tt : tt;
+      const f = Math.max(0, Math.min(1, u)) * (curve.pts.length - 1), i = Math.min(curve.pts.length - 2, Math.floor(f)), k = f - i;
+      const A = curve.pts[i], B = curve.pts[i + 1];
+      return [A[0] + (B[0] - A[0]) * k, A[1] + (B[1] - A[1]) * k];
+    };
     const color = p.red ? "255, 90, 90" : night ? "255, 220, 170" : "235, 140, 50";
-    grad.addColorStop(0, `rgba(${color}, 0)`);
-    grad.addColorStop(1, `rgba(${color}, 0.95)`);
-    ctx.strokeStyle = grad;
-    ctx.lineWidth = 1.3;
-    ctx.beginPath();
-    ctx.moveTo(x0, y0);
-    ctx.lineTo(x1, y1);
-    ctx.stroke();
+    for (let q = 0; q < 8; q++) {
+      const tt = p.t - q * 0.05;
+      if (tt < 0) break;
+      const [qx, qy] = at(tt);
+      ctx.fillStyle = `rgba(${color}, ${0.95 * (1 - q / 8)})`;
+      ctx.beginPath(); ctx.arc(qx, qy, 1.7 * (1 - q / 10), 0, Math.PI * 2); ctx.fill();
+    }
     if (p.t >= 1) {
       p.done = true;
       c.glow = 1;
@@ -2290,7 +2349,7 @@ function drawLife(time) {
     }
     ctx.fillStyle = `rgba(${rgb.join(",")}, ${0.35 + 0.65 * g})`;
     ctx.beginPath();
-    ctx.arc(x, y, 1.1 + g * 1.2, 0, Math.PI * 2);
+    ctx.arc(x, y, 1.6 + g * 1.4 + Math.sin(time / 300 + n.seed) * 0.3, 0, Math.PI * 2);   // нейрон — капля, которая чуть пульсирует
     ctx.fill();
   }
   ctx.globalCompositeOperation = "source-over";
