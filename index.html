@@ -132,6 +132,7 @@ html.night .hero-bg-img { opacity: 0; }
   filter: blur(22px);
   mix-blend-mode: screen;
   opacity: 0.55;
+  will-change: opacity;     /* «дыхание» света — без перерисовки размытия каждый кадр */
   transition: opacity 1.4s ease;
   pointer-events: none;
 }
@@ -293,6 +294,7 @@ html.night .slit { background: #050505; box-shadow: 0 1px 0 rgba(255, 255, 255, 
 .hero {
   position: relative;
   isolation: isolate;
+  min-height: 100vh;   /* старые браузеры не знают svh — без этого первый экран другой высоты и щель «уезжает» от тени */
   min-height: 100svh;
   display: block;
   /* Текст стоит прямо под щелью, в её свете. */
@@ -313,6 +315,7 @@ html.night .slit { background: #050505; box-shadow: 0 1px 0 rgba(255, 255, 255, 
   -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent 100%);
   mask-image: linear-gradient(to bottom, #000 62%, transparent 100%);
   transform: translate3d(0, calc(var(--hero-p, 0) * 18vh), 0);
+  will-change: transform;   /* параллакс двигает готовый слой, а не перерисовывает размытый свет */
 }
 @property --pour {
   syntax: "<percentage>";
@@ -1247,6 +1250,7 @@ html.night .step-number { color: #e9b276; }
 }
 .sab-btn svg { width: 1.25rem; height: 1.25rem; flex-shrink: 0; position: relative; }
 .actions:has(.sab-btn) { align-items: center; }
+.hero-off :is(.slit-light, .slit-edge, .slit-beam, .hero-bg-img) { animation-play-state: paused; }
 html.night .sab-btn { --sab-strand: #d6d2cb; --sab-strand-hl: rgba(0,0,0,.22); }   /* ночью чёрные нити не видны на тёмном фоне */
 </style>
 </head>
@@ -1681,6 +1685,16 @@ function placeSlit() {
 }
 placeSlit();
 window.addEventListener("resize", placeSlit);
+// Высота первого экрана может измениться и после загрузки (шрифт, старый браузер) —
+// тогда линия со светом пересчитывается вслед за картинкой и не отрывается от неё.
+if ("ResizeObserver" in window) new ResizeObserver(() => placeSlit()).observe(heroBgImg);
+window.addEventListener("load", placeSlit);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(placeSlit);
+// Бесконечные анимации света ставятся на паузу, когда первый экран не виден.
+if ("IntersectionObserver" in window) {
+  new IntersectionObserver(([e]) => document.documentElement.classList.toggle("hero-off", !e.isIntersecting))
+    .observe(heroSection);
+}
 
 // Прокрутка: фон первого экрана уходит медленнее страницы, текст растворяется.
 const calm = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -2392,7 +2406,10 @@ heroSection.addEventListener("pointerleave", () => {
 
     let W = 0, H = 0;
     function resize() {
-      const dpr = Math.min(devicePixelRatio || 1, 2);
+      // на больших экранах (iMac 5K и т. п.) ограничиваем плотность холста — меньше работы видеокарте
+      let dpr = Math.min(devicePixelRatio || 1, 2);
+      const px = innerWidth * innerHeight;
+      if (px * dpr * dpr > 6e6) dpr = Math.max(1, Math.sqrt(6e6 / px));
       W = innerWidth; H = innerHeight;
       cv.width = W * dpr; cv.height = H * dpr;
       cv.style.width = W + 'px'; cv.style.height = H + 'px';
@@ -2524,7 +2541,7 @@ heroSection.addEventListener("pointerleave", () => {
       // боковые нити, прилипшие к этой, тоже отрываются
       if (s.core) for (const o of strands) if (!o.core && o.host === s) detach(o, now);
     }
-    function releaseAll(now) { for (const s of strands) detach(s, now); }
+    function releaseAll(now) { for (const s of strands) detach(s, now); if (strands.some(s => s.state === 'recoil')) wake(); }
 
     // ---------- физика (верле) ----------
     function integrate(pts, pinA, pinB) {
@@ -2656,9 +2673,15 @@ heroSection.addEventListener("pointerleave", () => {
     }
 
     // ---------- кадр ----------
-    let prev = performance.now();
-    function frame(now) {
+    // Анимация работает только пока есть что рисовать. В покое цикл полностью остановлен,
+    // а будит его движение курсора рядом с кнопкой — так страница не нагружает процессор.
+    let prev = performance.now(), running = false;
+    function wake() {
+      if (running) return;
+      running = true; prev = performance.now();
       raf = requestAnimationFrame(frame);
+    }
+    function frame(now) {
       const dt = Math.min(50, now - prev); prev = now;
       const g = geom();
       const de = edgeDist(g);
@@ -2683,7 +2706,11 @@ heroSection.addEventListener("pointerleave", () => {
       }
 
       ctx.clearRect(0, 0, W, H);
-      if (!anyAlive && !drips.length && !drops.length) return;
+      const busy = strands.some(s => s.state !== 'dead') || drips.length || drops.length;
+      // всё втянулось и курсор далеко — засыпаем
+      if (!busy && !(de < near * 1.5 && mouse.x > -1e3)) { running = false; return; }
+      raf = requestAnimationFrame(frame);
+      if (!busy) return;
 
       const col = getComputedStyle(btn).getPropertyValue('--sab-strand').trim() || C.color;
       const hl = getComputedStyle(btn).getPropertyValue('--sab-strand-hl').trim() || 'rgba(255,255,255,.3)';
@@ -2770,11 +2797,17 @@ heroSection.addEventListener("pointerleave", () => {
       });
       ctx.restore();
     }
-    raf = requestAnimationFrame(frame);
 
     // ---------- события ----------
+    function nearButton(x, y) {
+      const r = btn.getBoundingClientRect(), pad = r.width * C.near * 1.5;
+      return x > r.left - pad && x < r.right + pad && y > r.top - pad && y < r.bottom + pad;
+    }
     const onMove = e => {
-      if (e.pointerType === 'mouse') { mouse.x = e.clientX; mouse.y = e.clientY; }
+      if (e.pointerType === 'mouse') {
+        mouse.x = e.clientX; mouse.y = e.clientY;
+        if (!running && nearButton(mouse.x, mouse.y)) wake();
+      }
       else if (touch && e.pointerId === touch.id) {
         mouse.x = e.clientX; mouse.y = e.clientY;
         if (Math.hypot(e.clientX - touch.x0, e.clientY - touch.y0) > 10) touch.moved = true;
@@ -2787,6 +2820,7 @@ heroSection.addEventListener("pointerleave", () => {
       touch = { id: e.pointerId, x0: e.clientX, y0: e.clientY, moved: false };
       suppressClick = false;
       mouse.x = e.clientX; mouse.y = e.clientY;
+      wake();
     };
     const onUp = e => {
       if (!touch || e.pointerId !== touch.id) return;
@@ -2811,7 +2845,7 @@ heroSection.addEventListener("pointerleave", () => {
 
     return (btn.__sab = {
       destroy() {
-        cancelAnimationFrame(raf);
+        cancelAnimationFrame(raf); running = false;
         removeEventListener('pointermove', onMove);
         btn.removeEventListener('pointerdown', onDown);
         removeEventListener('pointerup', onUp);
