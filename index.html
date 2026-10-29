@@ -1251,9 +1251,6 @@ html.night .step-number { color: #e9b276; }
 .sab-btn svg { width: 1.25rem; height: 1.25rem; flex-shrink: 0; position: relative; }
 .actions:has(.sab-btn) { align-items: center; }
 .hero-off :is(.slit-light, .slit-edge, .slit-beam, .hero-bg-img) { animation-play-state: paused; }
-/* Нити портрета — цвета его линий */
-.portrait { --sab-strand: #1d1e20; --sab-strand-hl: rgba(255,255,255,.25); }
-html.night .portrait { --sab-strand: #edebe7; --sab-strand-hl: rgba(0,0,0,.2); }
 html.night .sab-btn { --sab-strand: #d6d2cb; --sab-strand-hl: rgba(0,0,0,.22); }   /* ночью чёрные нити не видны на тёмном фоне */
 </style>
 </head>
@@ -2880,87 +2877,306 @@ heroSection.addEventListener("pointerleave", () => {
 
 </script>
 <script>
-// ===== Липкие нити от портрета в «Обо мне» =====
-// Контур силуэта вычисляется один раз по маске портрета (второй канал PORTRAIT),
-// дальше нити растут из этого контура к курсору — так же, как у главной кнопки.
+// ===== Портрет: к курсору тянутся сосуды от сердца и волокна от нейронов =====
+// Когда курсор рядом с портретом, из сердца к нему выстреливают красные «сосуды» (в такт удару),
+// из нейронов в голове — тонкие янтарные волокна. По ним к курсору бегут импульсы:
+// красные — на каждый удар сердца, янтарные — когда вспыхивает нейрон.
+// Если отвести курсор, нити истончаются, рвутся по очереди и втягиваются обратно.
+// Использует данные и состояние портрета: PORTRAIT, neurons, lastBeat, BEAT, isNight, calm.
 (function () {
   const fig = document.querySelector(".portrait");
-  if (!fig || !window.StickyArmButton || typeof PORTRAIT === "undefined") return;
-  const PW = PORTRAIT.w, PH = PORTRAIT.h;
-  // маска с пустой рамкой в 1 пиксель, чтобы контур замкнулся по краям картинки
-  const GW = PW + 2, GH = PH + 2, mask = new Uint8Array(GW * GH);
-  for (let y = 0; y < PH; y++) for (let x = 0; x < PW; x++)
-    if (portraitBytes[(y * PW + x) * 2 + 1] > 128) mask[(y + 1) * GW + x + 1] = 1;
-  const on = (x, y) => x >= 0 && y >= 0 && x < GW && y < GH && mask[y * GW + x] === 1;
+  const life = document.querySelector(".neurons");
+  if (!fig || !life || typeof PORTRAIT === "undefined" || calm.matches) return;
 
-  // обход границы (Moore): начинаем с самой верхней точки — это макушка
-  let sx = -1, sy = -1;
-  outer: for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) if (on(x, y)) { sx = x; sy = y; break outer; }
-  if (sx < 0) return;
-  const nb = [[-1, 0], [-1, -1], [0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1]];
-  const raw = [[sx, sy]];
-  let cx = sx, cy = sy, bx = sx - 1, by = sy;
-  const b0x = bx, b0y = by;
-  for (let guard = 0; guard < 40000; guard++) {
-    let bi = nb.findIndex(([dx, dy]) => cx + dx === bx && cy + dy === by);
-    let found = false;
-    for (let k = 1; k <= 8; k++) {
-      const i = (bi + k) % 8, nx = cx + nb[i][0], ny = cy + nb[i][1];
-      if (on(nx, ny)) {
-        const pi = (i + 7) % 8;
-        bx = cx + nb[pi][0]; by = cy + nb[pi][1];
-        cx = nx; cy = ny; found = true; break;
+  const CFG = {
+    pad: 150,                 // на каком расстоянии от портрета нити начинают тянуться, px
+    heart: 9, nerve: 11,      // сколько сосудов и волокон
+    segs: 20,
+    heartWidth: [0.7, 2.6], nerveWidth: [0.35, 1.3],
+    heartBreak: [300, 440], nerveBreak: [220, 340],
+    grow: 170, nerveDelay: [60, 420],
+    gravity: 0.1, damping: 0.9, slack: 1.05, recoil: 0.9,
+    respawn: 350,
+    impulseMs: 520,           // сколько импульс бежит от начала нити до курсора
+  };
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+
+  const cv = document.createElement("canvas");
+  cv.setAttribute("aria-hidden", "true");
+  cv.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:2147482997";
+  document.body.append(cv);
+  const ctx = cv.getContext("2d");
+  let W = 0, H = 0;
+  function resize() {
+    let dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const px = innerWidth * innerHeight;
+    if (px * dpr * dpr > 6e6) dpr = Math.max(1, Math.sqrt(6e6 / px));
+    W = innerWidth; H = innerHeight;
+    cv.width = W * dpr; cv.height = H * dpr;
+    cv.style.width = W + "px"; cv.style.height = H + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  resize();
+  addEventListener("resize", resize);
+
+  const mouse = { x: -1e4, y: -1e4 };
+  const strands = [];
+  for (let i = 0; i < CFG.heart + CFG.nerve; i++)
+    strands.push({ heart: i < CFG.heart, state: "dead", diedAt: -1e9, pts: [], tip: { x: 0, y: 0 }, A: { x: 0, y: 0 } });
+  let impulses = [], flashes = [];
+  let seenBeat = 0, nextNerveFire = 0;
+
+  // где сейчас сердце и нейрон на экране
+  function lifeRect() { return life.getBoundingClientRect(); }
+  function heartAt(r, s) {
+    const [hx, hy] = PORTRAIT.heart;
+    return { x: r.left + hx * r.width + s.jx, y: r.top + hy * r.height + s.jy };
+  }
+  function neuronAt(r, s) {
+    const n = neurons[s.neuron] || neurons[0];
+    return { x: r.left + n.x * r.width, y: r.top + n.y * r.height };
+  }
+  const anchorOf = (r, s) => (s.heart ? heartAt(r, s) : neuronAt(r, s));
+
+  function spawn(s, now, r, burst) {
+    s.w = s.heart ? rand(CFG.heartWidth[0], CFG.heartWidth[1]) : rand(CFG.nerveWidth[0], CFG.nerveWidth[1]);
+    s.jx = rand(-10, 10) * r.width / 360; s.jy = rand(-12, 8) * r.width / 360;
+    if (!s.heart) {
+      const used = new Set(strands.filter((o) => !o.heart && o !== s && o.state !== "dead").map((o) => o.neuron));
+      const free = neurons.map((_, i) => i).filter((i) => !used.has(i));
+      s.neuron = free.length ? free[Math.floor(Math.random() * free.length)] : Math.floor(Math.random() * neurons.length);
+    }
+    s.ox = rand(-4, 4); s.oy = rand(-4, 4);
+    s.brk = s.heart ? rand(CFG.heartBreak[0], CFG.heartBreak[1]) * (0.85 + s.w / 12) : rand(CFG.nerveBreak[0], CFG.nerveBreak[1]);
+    s.born = now;
+    s.delay = s.heart ? (burst ? rand(0, 60) : rand(0, 160)) : rand(CFG.nerveDelay[0], CFG.nerveDelay[1]);
+    s.seed = rand(0, 1000);
+    s.prof = []; const p1 = rand(0, 6), p2 = rand(0, 6), f1 = rand(0.5, 0.9), f2 = rand(1.3, 2.2);
+    for (let j = 0; j <= CFG.segs; j++) s.prof.push(1 + 0.22 * Math.sin(j * f1 + p1) + 0.14 * Math.sin(j * f2 + p2));
+    const a = anchorOf(r, s);
+    s.A = a; s.tip = { x: a.x, y: a.y };
+    s.pts = [];
+    for (let j = 0; j <= CFG.segs; j++) s.pts.push({ x: a.x, y: a.y, px: a.x, py: a.y });
+    s.tension = 0;
+    const D0 = Math.hypot(mouse.x - a.x, mouse.y - a.y);
+    s.brk = Math.max(s.brk, D0 * 1.6);
+    s.state = "grow";
+  }
+  function detach(s, now) {
+    if (s.state !== "grow" && s.state !== "live") return;
+    s.state = "recoil";
+    const last = CFG.segs;
+    s.rest = Math.hypot(s.pts[last].x - s.pts[0].x, s.pts[last].y - s.pts[0].y) / CFG.segs;
+    for (let j = 1; j <= last; j++) {
+      const p = s.pts[j], k = (j / last) * 0.1;
+      p.px = p.x - (s.A.x - p.x) * k; p.py = p.y - (s.A.y - p.y) * k;
+    }
+    impulses = impulses.filter((im) => im.s !== s);
+  }
+
+  function integrate(pts, pinB) {
+    const last = pts.length - 1;
+    for (let i = 1; i <= last; i++) {
+      if (i === last && pinB) continue;
+      const p = pts[i];
+      const vx = (p.x - p.px) * CFG.damping, vy = (p.y - p.py) * CFG.damping;
+      p.px = p.x; p.py = p.y; p.x += vx; p.y += vy + CFG.gravity;
+    }
+  }
+  function constrain(pts, rest, A, B) {
+    const last = pts.length - 1;
+    for (let it = 0; it < 10; it++) {
+      pts[0].x = A.x; pts[0].y = A.y;
+      if (B) { pts[last].x = B.x; pts[last].y = B.y; }
+      for (let i = 0; i < last; i++) {
+        const p = pts[i], q = pts[i + 1];
+        const dx = q.x - p.x, dy = q.y - p.y, d = Math.hypot(dx, dy) || 1e-4, diff = (d - rest) / d;
+        const fq = i + 1 === last && B;
+        const wp = i === 0 ? 0 : (fq ? 1 : 0.5), wq = fq ? 0 : (i === 0 ? 1 : 0.5);
+        p.x += dx * diff * wp; p.y += dy * diff * wp; q.x -= dx * diff * wq; q.y -= dy * diff * wq;
       }
     }
-    if (!found) break;
-    if (cx === sx && cy === sy && bx === b0x && by === b0y) break;
-    raw.push([cx, cy]);
+    pts[0].px = pts[0].x; pts[0].py = pts[0].y;
+    if (B) { pts[last].px = pts[last].x; pts[last].py = pts[last].y; }
   }
-  // сглаживание и равномерная разбивка контура на 260 точек
-  const sm = raw.map((_, i) => {
-    let x = 0, y = 0;
-    for (let k = -3; k <= 3; k++) { const p = raw[(i + k + raw.length) % raw.length]; x += p[0]; y += p[1]; }
-    return [x / 7 - 1, y / 7 - 1];
-  });
-  const len = [0];
-  for (let i = 1; i <= sm.length; i++) {
-    const a = sm[i - 1], b = sm[i % sm.length];
-    len.push(len[i - 1] + Math.hypot(b[0] - a[0], b[1] - a[1]));
+  function pointAt(pts, t) {
+    const f = clamp(t, 0, 1) * (pts.length - 1), i = Math.min(pts.length - 2, Math.floor(f)), k = f - i;
+    return { x: pts[i].x + (pts[i + 1].x - pts[i].x) * k, y: pts[i].y + (pts[i + 1].y - pts[i].y) * k };
   }
-  const total = len[len.length - 1], N = 260, base = [];
-  for (let i = 0, j = 0; i < N; i++) {
-    const d = (i / N) * total;
-    while (len[j + 1] < d) j++;
-    const a = sm[j], b = sm[(j + 1) % sm.length], k = (d - len[j]) / ((len[j + 1] - len[j]) || 1);
-    base.push([a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k]);
+  function ribbon(pts, widthAt) {
+    const n = pts.length, L = [], R = [];
+    for (let i = 0; i < n; i++) {
+      const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)];
+      let tx = b.x - a.x, ty = b.y - a.y; const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+      const hw = widthAt(i) / 2;
+      L.push({ x: pts[i].x - ty * hw, y: pts[i].y + tx * hw });
+      R.push({ x: pts[i].x + ty * hw, y: pts[i].y - tx * hw });
+    }
+    ctx.beginPath();
+    ctx.moveTo(L[0].x, L[0].y);
+    for (let i = 1; i < n - 1; i++) ctx.quadraticCurveTo(L[i].x, L[i].y, (L[i].x + L[i + 1].x) / 2, (L[i].y + L[i + 1].y) / 2);
+    ctx.lineTo(L[n - 1].x, L[n - 1].y); ctx.lineTo(R[n - 1].x, R[n - 1].y);
+    for (let i = n - 2; i > 0; i--) ctx.quadraticCurveTo(R[i].x, R[i].y, (R[i].x + R[i - 1].x) / 2, (R[i].y + R[i - 1].y) / 2);
+    ctx.lineTo(R[0].x, R[0].y);
+    ctx.closePath(); ctx.fill();
   }
-  const inMask = (x, y) => { const xi = Math.round(x), yi = Math.round(y); return xi >= 0 && yi >= 0 && xi < PW && yi < PH && portraitBytes[(yi * PW + xi) * 2 + 1] > 128; };
-  const shape = base.map((p, i) => {
-    const a = base[(i - 2 + N) % N], b = base[(i + 2) % N];
-    let tx = b[0] - a[0], ty = b[1] - a[1]; const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
-    let nx = ty, ny = -tx;                                   // наружу — туда, где маска пустая
-    if (inMask(p[0] + nx * 3, p[1] + ny * 3) && !inMask(p[0] - nx * 3, p[1] - ny * 3)) { nx = -nx; ny = -ny; }
-    return { u: p[0] / PW, v: p[1] / PH, nx, ny };
-  });
 
-  StickyArmButton.mount(fig, {
-    near: 0.32,
-    core: 14, side: 12,
-    coreWidth: [0.5, 2.2], sideWidth: [0.3, 1.0],
-    coreBreak: [170, 280], sideBreak: [120, 210],
-    maxArc: 0.07,
-    shape: {
-      contour: g => shape.map(p => ({ x: g.l + p.u * g.w, y: g.t + p.v * g.h, nx: p.nx, ny: p.ny })),
-      inside: (g, x, y) => {
-        if (x < g.l || y < g.t || x > g.l + g.w || y > g.t + g.h) return false;
-        return inMask((x - g.l) / g.w * PW, (y - g.t) / g.h * PH);
-      },
-      clip: (ctx, g) => {
-        shape.forEach((p, i) => { const x = g.l + p.u * g.w, y = g.t + p.v * g.h; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
-        ctx.closePath();
-      },
-    },
+  // цвета: сосуды — красные, волокна — янтарные, как нейроны
+  function colors(night) {
+    return night
+      ? { heart: [255, 92, 104], nerve: [255, 200, 140], hiH: [255, 230, 230], hiN: [255, 240, 210] }
+      : { heart: [200, 34, 52], nerve: [214, 130, 60], hiH: [255, 120, 130], hiN: [255, 190, 120] };
+  }
+
+  let running = false, raf = 0;
+  function wake() { if (!running) { running = true; raf = requestAnimationFrame(frame); } }
+  function near(r) {
+    return mouse.x > r.left - CFG.pad && mouse.x < r.right + CFG.pad && mouse.y > r.top - CFG.pad && mouse.y < r.bottom + CFG.pad;
+  }
+
+  function frame(now) {
+    const r = lifeRect();
+    const night = isNight();
+    const col = colors(night);
+    const inZone = near(r) && neurons.length;
+    const beatNow = typeof lastBeat === "number" ? lastBeat : 0;
+    const beatPhase = clamp((now - beatNow) / (typeof BEAT === "number" ? BEAT : 1000), 0, 1);
+    const beatK = Math.exp(-Math.pow((beatPhase - 0.06) / 0.07, 2)) + 0.6 * Math.exp(-Math.pow((beatPhase - 0.26) / 0.07, 2));
+    const newBeat = beatNow !== seenBeat; seenBeat = beatNow;
+
+    // прилипание: сосуды — с ударом сердца, волокна — сразу, вразнобой
+    if (inZone) {
+      for (const s of strands) {
+        if (s.state !== "dead" || now - s.diedAt < CFG.respawn) continue;
+        if (s.heart && !newBeat) continue;   // сосуды выстреливают только на удар сердца
+        spawn(s, now, r, newBeat);
+      }
+    }
+    // импульсы: красные на каждый удар по всем живым сосудам, янтарные — от случайного нейрона
+    if (newBeat) for (const s of strands) if (s.heart && s.state === "live") impulses.push({ s, t0: now + rand(0, 70), red: true });
+    if (now > nextNerveFire) {
+      nextNerveFire = now + rand(260, 640);
+      const live = strands.filter((s) => !s.heart && s.state === "live");
+      if (live.length) {
+        const s = live[Math.floor(Math.random() * live.length)];
+        impulses.push({ s, t0: now, red: false });
+        const n = neurons[s.neuron]; if (n) n.glow = 1;
+      }
+    }
+
+    ctx.clearRect(0, 0, W, H);
+    const busy = strands.some((s) => s.state !== "dead") || flashes.length;
+    if (!busy && !inZone) { running = false; return; }
+    raf = requestAnimationFrame(frame);
+    if (!busy) return;
+
+    ctx.lineCap = "round";
+    for (const s of strands) {
+      if (s.state === "dead") continue;
+      const c = s.heart ? col.heart : col.nerve;
+      if (s.state === "recoil") {
+        s.rest *= CFG.recoil;
+        s.A = anchorOf(r, s);
+        integrate(s.pts, false);
+        constrain(s.pts, s.rest, s.A, null);
+        if (s.rest < 0.35) { s.state = "dead"; s.diedAt = now; continue; }
+        ctx.fillStyle = `rgb(${c})`;
+        ribbon(s.pts, (i) => Math.max(0.3, s.w * s.prof[i] * 0.8));
+        const e = s.pts[CFG.segs];
+        ctx.beginPath(); ctx.arc(e.x, e.y, s.w * 0.7 + 0.4, 0, Math.PI * 2); ctx.fill();
+        continue;
+      }
+      s.A = anchorOf(r, s);
+      const goal = { x: mouse.x + s.ox, y: mouse.y + s.oy };
+      const k = easeOut(clamp((now - s.born - s.delay) / CFG.grow, 0, 1));
+      if (k <= 0) continue;
+      // во время роста кончик извивается — живая «пуля»
+      const dx = goal.x - s.A.x, dy = goal.y - s.A.y, dl = Math.hypot(dx, dy) || 1;
+      const wig = k < 1 ? Math.sin(k * 12 + s.seed) * 7 * (1 - k) : 0;
+      s.tip.x = s.A.x + dx * k - (dy / dl) * wig;
+      s.tip.y = s.A.y + dy * k + (dx / dl) * wig;
+      if (k >= 1) s.state = "live";
+      s.tension = s.state === "live" ? dl / s.brk : 0;
+      if (s.tension > 1) { detach(s, now); continue; }
+      const D = Math.hypot(s.tip.x - s.A.x, s.tip.y - s.A.y);
+      integrate(s.pts, true);
+      constrain(s.pts, Math.max(0.01, (D / CFG.segs) * CFG.slack), s.A, s.tip);
+      // сосуды чуть вздуваются на ударе
+      const swell = s.heart ? 1 + beatK * 0.35 : 1;
+      const neck = clamp((s.tension - 0.72) / 0.28, 0, 1);
+      ctx.fillStyle = `rgba(${c}, ${s.heart ? 0.92 : 0.85})`;
+      ribbon(s.pts, (i) => {
+        const u = i / CFG.segs;
+        let m = s.prof[i] * (1.2 - 0.5 * Math.sin(Math.PI * u) * (0.6 + 0.6 * s.tension)) * swell;
+        if (neck > 0) m *= 1 - 0.75 * neck * clamp((u - 0.55) / 0.45, 0, 1);
+        return Math.max(0.3, s.w * m);
+      });
+    }
+
+    // бегущие импульсы: светящаяся точка с хвостом вдоль нити
+    ctx.save();
+    ctx.globalCompositeOperation = night ? "lighter" : "source-over";
+    impulses = impulses.filter((im) => {
+      if (im.s.state === "dead" || im.s.state === "recoil") return false;
+      const t = (now - im.t0) / CFG.impulseMs;
+      if (t < 0) return true;
+      if (t >= 1) {
+        flashes.push({ x: mouse.x, y: mouse.y, born: now, red: im.red });
+        return false;
+      }
+      const c = im.red ? col.hiH : col.hiN, base = im.red ? col.heart : col.nerve;
+      ctx.shadowColor = `rgba(${base}, 0.9)`;
+      ctx.shadowBlur = 8;
+      for (let i = 0; i < 7; i++) {
+        const tt = t - i * 0.025;
+        if (tt < 0) break;
+        const p = pointAt(im.s.pts, tt);
+        ctx.fillStyle = `rgba(${i ? base : c}, ${1 - i / 7})`;
+        ctx.beginPath(); ctx.arc(p.x, p.y, (im.red ? 2.6 : 1.9) * (1 - i / 9), 0, Math.PI * 2); ctx.fill();
+      }
+      return true;
+    });
+    // вспышка у курсора, когда импульс добегает
+    ctx.shadowBlur = 0;
+    flashes = flashes.filter((f) => {
+      const t = (now - f.born) / 420;
+      if (t >= 1) return false;
+      const base = f.red ? col.heart : col.nerve, rad = 6 + t * 14;
+      const g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, rad);
+      g.addColorStop(0, `rgba(${f.red ? col.hiH : col.hiN}, ${0.85 * (1 - t)})`);
+      g.addColorStop(1, `rgba(${base}, 0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(f.x, f.y, rad, 0, Math.PI * 2); ctx.fill();
+      return true;
+    });
+    ctx.restore();
+  }
+
+  function releaseAll() {
+    const now = performance.now();
+    for (const s of strands) detach(s, now);
+    if (strands.some((s) => s.state === "recoil")) wake();
+  }
+  addEventListener("pointermove", (e) => {
+    if (e.pointerType !== "mouse") return;
+    mouse.x = e.clientX; mouse.y = e.clientY;
+    if (!running && near(lifeRect())) wake();
+  }, { passive: true });
+  document.documentElement.addEventListener("mouseleave", () => { releaseAll(); mouse.x = mouse.y = -1e4; });
+  addEventListener("blur", releaseAll);
+  // на телефоне: коснулся портрета — нити тянутся за пальцем, отпустил — отрываются
+  fig.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "mouse") return;
+    mouse.x = e.clientX; mouse.y = e.clientY; wake();
   });
+  addEventListener("pointermove", (e) => {
+    if (e.pointerType === "mouse" || !running) return;
+    mouse.x = e.clientX; mouse.y = e.clientY;
+  }, { passive: true });
+  addEventListener("pointerup", (e) => { if (e.pointerType !== "mouse") { releaseAll(); mouse.x = mouse.y = -1e4; } });
+  addEventListener("pointercancel", (e) => { if (e.pointerType !== "mouse") { releaseAll(); mouse.x = mouse.y = -1e4; } });
 })();
 </script>
 </body>
