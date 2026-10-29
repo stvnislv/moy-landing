@@ -817,7 +817,9 @@ html.night .slit { background: #050505; box-shadow: 0 1px 0 rgba(255, 255, 255, 
   .hero-text > :nth-child(2) { animation-delay: 0.7s; }
   .hero-text > :nth-child(3) { animation-delay: 0.8s; }
   .hero-text > :nth-child(4) { animation-delay: 0.9s; }
-  .hero-text { opacity: calc(1 - var(--hero-p, 0) * 1.4); transform: translate3d(0, calc(var(--hero-p, 0) * -6vh), 0); }
+  .hero-text { transform: translate3d(0, calc(var(--hero-p, 0) * -6vh), 0); }
+  /* При прокрутке тает всё, кроме главной чёрной кнопки: она остаётся чёрной. */
+  .hero-text > :not(.actions), .hero-text .actions > :not(.sab-btn) { opacity: calc(1 - var(--hero-p, 0) * 1.4); }
 
   /* Главная кнопка: кромка и подсветка медленно переливаются. */
   .prism::before, .prism::after { animation: lg-spin 8s linear infinite; }
