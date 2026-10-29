@@ -1251,6 +1251,9 @@ html.night .step-number { color: #e9b276; }
 .sab-btn svg { width: 1.25rem; height: 1.25rem; flex-shrink: 0; position: relative; }
 .actions:has(.sab-btn) { align-items: center; }
 .hero-off :is(.slit-light, .slit-edge, .slit-beam, .hero-bg-img) { animation-play-state: paused; }
+/* Нити портрета — цвета его линий */
+.portrait { --sab-strand: #1d1e20; --sab-strand-hl: rgba(255,255,255,.25); }
+html.night .portrait { --sab-strand: #edebe7; --sab-strand-hl: rgba(0,0,0,.2); }
 html.night .sab-btn { --sab-strand: #d6d2cb; --sab-strand-hl: rgba(0,0,0,.22); }   /* ночью чёрные нити не видны на тёмном фоне */
 </style>
 </head>
@@ -2385,6 +2388,8 @@ heroSection.addEventListener("pointerleave", () => {
     tremble: 0.2,
     recoil: 0.9,            // скорость втягивания оторванной нити (меньше = быстрее)
     color: '#111',
+    maxArc: 0.5,            // максимальная длина стороны, откуда растут нити (доля контура в каждую сторону)
+    shape: null,            // свой контур вместо капсулы: { contour(g), inside(g, x, y), clip(ctx, g) }
   };
 
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -2428,7 +2433,10 @@ heroSection.addEventListener("pointerleave", () => {
       return { l: r.left, t: r.top, w: r.width, h: r.height,
                x: r.left + r.width / 2, y: r.top + r.height / 2, hw: r.width / 2, hh: r.height / 2 };
     }
+    // Форма может быть любой: по умолчанию капсула кнопки, но через opts.shape можно передать
+    // свой контур (например, силуэт портрета): { contour(g), inside(g, x, y), clip(ctx, g) }.
     function contour(g, N) {
+      if (C.shape) return C.shape.contour(g, N);
       const r = g.hh, L = Math.max(0, g.w - 2 * r), P = 2 * L + 2 * Math.PI * r, out = [];
       for (let i = 0; i < N; i++) {
         let d = (i / N) * P, x, y, nx, ny;
@@ -2443,7 +2451,7 @@ heroSection.addEventListener("pointerleave", () => {
     // Сторона кнопки, обращённая к курсору. Возвращает функцию: доля f ∈ [0..1] → точка чуть под краем.
     // Центр стороны (f = 0.5) — точка края, ближайшая к курсору.
     function facingSide(g) {
-      const N = 180, pts = contour(g, N);
+      const pts = contour(g, 180), N = pts.length;
       const face = pts.map(p => (mouse.x - p.x) * p.nx + (mouse.y - p.y) * p.ny > 0);
       let best = 0, bd = Infinity;
       pts.forEach((p, i) => { const d = Math.hypot(mouse.x - p.x, mouse.y - p.y); if (d < bd) { bd = d; best = i; } });
@@ -2451,8 +2459,9 @@ heroSection.addEventListener("pointerleave", () => {
       const all = face.every(Boolean) || !face.some(Boolean);
       if (all) { a = b = N / 4; }
       else {
-        while (a < N / 2 && face[((best - a - 1) % N + N) % N]) a++;
-        while (b < N / 2 && face[(best + b + 1) % N]) b++;
+        const lim = N * C.maxArc;   // для сложных контуров (силуэт) сторона ограничена
+        while (a < lim && face[((best - a - 1) % N + N) % N]) a++;
+        while (b < lim && face[(best + b + 1) % N]) b++;
         a = Math.max(a, 6); b = Math.max(b, 6);
       }
       return f => {
@@ -2466,12 +2475,13 @@ heroSection.addEventListener("pointerleave", () => {
     function edgeDist(g) {
       let bd = Infinity;
       for (const p of contour(g, 90)) bd = Math.min(bd, Math.hypot(mouse.x - p.x, mouse.y - p.y));
-      const inside = Math.abs(mouse.x - g.x) < g.hw - g.hh
+      const inside = C.shape ? C.shape.inside(g, mouse.x, mouse.y) : Math.abs(mouse.x - g.x) < g.hw - g.hh
         ? Math.abs(mouse.y - g.y) < g.hh
         : Math.hypot(Math.abs(mouse.x - g.x) - (g.hw - g.hh), mouse.y - g.y) < g.hh;
       return inside ? -bd : bd;
     }
     function pill(g) {
+      if (C.shape) return C.shape.clip(ctx, g);
       const r = g.hh;
       ctx.moveTo(g.l + r, g.t);
       ctx.lineTo(g.l + g.w - r, g.t);
@@ -2868,6 +2878,90 @@ heroSection.addEventListener("pointerleave", () => {
   global.StickyArmButton = { mount, defaults: DEFAULTS };
 })(window);
 
+</script>
+<script>
+// ===== Липкие нити от портрета в «Обо мне» =====
+// Контур силуэта вычисляется один раз по маске портрета (второй канал PORTRAIT),
+// дальше нити растут из этого контура к курсору — так же, как у главной кнопки.
+(function () {
+  const fig = document.querySelector(".portrait");
+  if (!fig || !window.StickyArmButton || typeof PORTRAIT === "undefined") return;
+  const PW = PORTRAIT.w, PH = PORTRAIT.h;
+  // маска с пустой рамкой в 1 пиксель, чтобы контур замкнулся по краям картинки
+  const GW = PW + 2, GH = PH + 2, mask = new Uint8Array(GW * GH);
+  for (let y = 0; y < PH; y++) for (let x = 0; x < PW; x++)
+    if (portraitBytes[(y * PW + x) * 2 + 1] > 128) mask[(y + 1) * GW + x + 1] = 1;
+  const on = (x, y) => x >= 0 && y >= 0 && x < GW && y < GH && mask[y * GW + x] === 1;
+
+  // обход границы (Moore): начинаем с самой верхней точки — это макушка
+  let sx = -1, sy = -1;
+  outer: for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) if (on(x, y)) { sx = x; sy = y; break outer; }
+  if (sx < 0) return;
+  const nb = [[-1, 0], [-1, -1], [0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1]];
+  const raw = [[sx, sy]];
+  let cx = sx, cy = sy, bx = sx - 1, by = sy;
+  const b0x = bx, b0y = by;
+  for (let guard = 0; guard < 40000; guard++) {
+    let bi = nb.findIndex(([dx, dy]) => cx + dx === bx && cy + dy === by);
+    let found = false;
+    for (let k = 1; k <= 8; k++) {
+      const i = (bi + k) % 8, nx = cx + nb[i][0], ny = cy + nb[i][1];
+      if (on(nx, ny)) {
+        const pi = (i + 7) % 8;
+        bx = cx + nb[pi][0]; by = cy + nb[pi][1];
+        cx = nx; cy = ny; found = true; break;
+      }
+    }
+    if (!found) break;
+    if (cx === sx && cy === sy && bx === b0x && by === b0y) break;
+    raw.push([cx, cy]);
+  }
+  // сглаживание и равномерная разбивка контура на 260 точек
+  const sm = raw.map((_, i) => {
+    let x = 0, y = 0;
+    for (let k = -3; k <= 3; k++) { const p = raw[(i + k + raw.length) % raw.length]; x += p[0]; y += p[1]; }
+    return [x / 7 - 1, y / 7 - 1];
+  });
+  const len = [0];
+  for (let i = 1; i <= sm.length; i++) {
+    const a = sm[i - 1], b = sm[i % sm.length];
+    len.push(len[i - 1] + Math.hypot(b[0] - a[0], b[1] - a[1]));
+  }
+  const total = len[len.length - 1], N = 260, base = [];
+  for (let i = 0, j = 0; i < N; i++) {
+    const d = (i / N) * total;
+    while (len[j + 1] < d) j++;
+    const a = sm[j], b = sm[(j + 1) % sm.length], k = (d - len[j]) / ((len[j + 1] - len[j]) || 1);
+    base.push([a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k]);
+  }
+  const inMask = (x, y) => { const xi = Math.round(x), yi = Math.round(y); return xi >= 0 && yi >= 0 && xi < PW && yi < PH && portraitBytes[(yi * PW + xi) * 2 + 1] > 128; };
+  const shape = base.map((p, i) => {
+    const a = base[(i - 2 + N) % N], b = base[(i + 2) % N];
+    let tx = b[0] - a[0], ty = b[1] - a[1]; const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+    let nx = ty, ny = -tx;                                   // наружу — туда, где маска пустая
+    if (inMask(p[0] + nx * 3, p[1] + ny * 3) && !inMask(p[0] - nx * 3, p[1] - ny * 3)) { nx = -nx; ny = -ny; }
+    return { u: p[0] / PW, v: p[1] / PH, nx, ny };
+  });
+
+  StickyArmButton.mount(fig, {
+    near: 0.32,
+    core: 14, side: 12,
+    coreWidth: [0.5, 2.2], sideWidth: [0.3, 1.0],
+    coreBreak: [170, 280], sideBreak: [120, 210],
+    maxArc: 0.07,
+    shape: {
+      contour: g => shape.map(p => ({ x: g.l + p.u * g.w, y: g.t + p.v * g.h, nx: p.nx, ny: p.ny })),
+      inside: (g, x, y) => {
+        if (x < g.l || y < g.t || x > g.l + g.w || y > g.t + g.h) return false;
+        return inMask((x - g.l) / g.w * PW, (y - g.t) / g.h * PH);
+      },
+      clip: (ctx, g) => {
+        shape.forEach((p, i) => { const x = g.l + p.u * g.w, y = g.t + p.v * g.h; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+        ctx.closePath();
+      },
+    },
+  });
+})();
 </script>
 </body>
 </html>
