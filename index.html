@@ -1855,7 +1855,7 @@ function warpThreads(time) {
   if (!threadsImage.width) return;
   const dpr = threadsImage.width / w;
   ctx.clearRect(0, 0, w, h);
-  const strip = 3;                                            // высота полоски, px
+  const strip = 5;                                            // высота полоски, px (крупнее — меньше работы, движение то же)
   for (let y = 0; y < h; y += strip) {
     const ny = (y + strip / 2) / h;
     // Тело и лицо двигаются целой строкой; только отлетевшая прядь у лица
@@ -1864,7 +1864,7 @@ function warpThreads(time) {
     const [dx, dy] = lifeMotion(0.4, ny, time, w);
     ctx.drawImage(threadsImage, 0, y * dpr, left * w * dpr, strip * dpr, dx, y + dy, left * w, strip);
     if (left < 1) {
-      const cols = 8;
+      const cols = 4;
       for (let c = 0; c < cols; c++) {
         const x0 = left + ((1 - left) * c) / cols, x1 = left + ((1 - left) * (c + 1)) / cols;
         const [cx, cy] = lifeMotion((x0 + x1) / 2, ny, time, w);
@@ -2078,8 +2078,7 @@ function drawHeart(ctx, x, y, unit, beat, time, night) {
   const px = 1 / unit;                               // один экранный пиксель в единицах сердца
   const red = night ? "255, 96, 108" : "198, 32, 50";
   const hi = night ? "255, 225, 225" : "255, 180, 185";
-  ctx.shadowColor = "rgba(255, 45, 70, 0.8)";
-  ctx.shadowBlur = 4 + beat * 8;
+  ctx.shadowBlur = 0;   // свечение сердца рисуется отдельным размытым слоем — так в разы дешевле
   const strands = (pts, closed, count, spread, width, alpha, seed) => {
     const d = sampleCurve(pts, closed, 6), nr = curveNormals(d);
     for (let k = 0; k < count; k++) {
@@ -2117,7 +2116,7 @@ function drawHeart(ctx, x, y, unit, beat, time, night) {
   const bodyPath = smoothPath(body.pts, true);
   ctx.save();
   ctx.clip(bodyPath);
-  ctx.shadowBlur = 2 + beat * 4;
+  ctx.shadowBlur = 0;
   for (let i = 0; i < 11; i++) {
     const yy = -22 + i * 8, sway = Math.sin(time / 650 + i * 0.7) * 2;
     const line = [];
@@ -2134,7 +2133,6 @@ function drawHeart(ctx, x, y, unit, beat, time, night) {
   ctx.restore();
   // контур желудочков — плотный пучок, коронарные сосуды — самые яркие
   strands(body.pts, true, 7, 6, 1.7, 0.9, 12);
-  ctx.shadowBlur = 6 + beat * 8;
   strands(groove.pts, false, 2, 1.6, 1.3, 0.95, 14);
   strands(coronary.pts, false, 2, 1.4, 1.2, 0.9, 15);
   ctx.restore();
@@ -2148,7 +2146,65 @@ function beatShape(phase) {
 let lastFire = 0;
 let lifeCtx = fitCanvas(lifeCanvas);
 let lifeVisible = false;
+// Оптимизация для слабых компьютеров: если кадры идут медленно, тяжёлые слои (полоски портрета, сердце)
+// обновляются реже, а сама анимация продолжает идти с той же скоростью.
+const perf = { lite: false, ema: 16, last: 0, warpAt: -1e9 };
+// Сердце рисуется в отдельный слой не чаще 30 раз в секунду и выводится готовой картинкой.
+const heartLayer = document.createElement("canvas");
+let heartStamp = -1e9, heartSize = 0, heartNight = null, heartBeatK = 0;
+const heartGlow = document.createElement("canvas");
+function drawHeartCached(ctx, x, y, unit, beat, time, night) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const S = Math.ceil(125 * unit) + 6;
+  if (S !== heartSize) { heartSize = S; heartLayer.width = heartLayer.height = Math.ceil(2 * S * dpr); heartStamp = -1e9; }
+  if (time - heartStamp >= (perf.lite ? 50 : 33) || night !== heartNight) {
+    const hc = heartLayer.getContext("2d");
+    hc.setTransform(dpr, 0, 0, dpr, 0, 0);
+    hc.clearRect(0, 0, 2 * S, 2 * S);
+    hc.globalCompositeOperation = "source-over";
+    drawHeart(hc, S, S, unit, beat, time, night);
+    // свечение: та же картинка, уменьшенная и растянутая обратно, — мягкое размытие почти даром
+    const gc = heartGlow.getContext("2d");
+    const canBlur = typeof gc.filter === "string";
+    const gw = canBlur ? heartLayer.width : Math.max(8, Math.round(heartLayer.width / 3));
+    if (heartGlow.width !== gw) { heartGlow.width = heartGlow.height = gw; }
+    gc.clearRect(0, 0, gw, gw);
+    if (canBlur) gc.filter = `blur(${Math.round(5 * dpr)}px)`;   // размытие маленькой картинки — дёшево
+    gc.drawImage(heartLayer, 0, 0, gw, gw);
+    if (canBlur) gc.filter = "none";
+    heartStamp = time; heartNight = night; heartBeatK = beat;
+  }
+  ctx.save();
+  ctx.globalCompositeOperation = night ? "lighter" : "source-over";
+  // два слоя свечения: широкий мягкий ореол и плотный — возвращают неоновую яркость сердца
+  // мягкое свечение под чёткими нитями сердца, на ударе ярче
+  ctx.globalAlpha = 0.75 + heartBeatK * 0.25;
+  ctx.drawImage(heartGlow, x - S, y - S, 2 * S, 2 * S);
+  ctx.drawImage(heartGlow, x - S, y - S, 2 * S, 2 * S);
+  ctx.globalAlpha = 1;
+  ctx.drawImage(heartLayer, x - S, y - S, 2 * S, 2 * S);
+  ctx.restore();
+}
+// Свечение нейрона — готовая картинка вместо градиента на каждый кадр.
+const haloCache = new Map();
+function haloSprite(rgb) {
+  const key = rgb.join(",");
+  let c = haloCache.get(key);
+  if (!c) {
+    c = document.createElement("canvas");
+    c.width = c.height = 40;
+    const x = c.getContext("2d"), g = x.createRadialGradient(20, 20, 0, 20, 20, 20);
+    g.addColorStop(0, `rgba(${key}, 0.75)`);
+    g.addColorStop(1, `rgba(${key}, 0)`);
+    x.fillStyle = g; x.fillRect(0, 0, 40, 40);
+    haloCache.set(key, c);
+    if (haloCache.size > 64) haloCache.delete(haloCache.keys().next().value);
+  }
+  return c;
+}
 function drawLife(time) {
+  const dtl = time - perf.last; perf.last = time;
+  if (dtl > 0 && dtl < 250) { perf.ema = perf.ema * 0.95 + dtl * 0.05; if (perf.ema > 24) perf.lite = true; }
   const { ctx, w, h } = lifeCtx;
   const night = isNight();
   const moving = !calm.matches;
@@ -2158,7 +2214,7 @@ function drawLife(time) {
 
   // Нейроны чуть плавают на месте.
   lastTime = time;
-  warpThreads(time);
+  if (time - perf.warpAt > (perf.lite ? 50 : 30)) { warpThreads(time); perf.warpAt = time; }   // дыхание портрета — 30 кадров/с, глазу не заметно
   // Голова двигается — нейроны вместе с ней.
   const [hdx, hdy] = lifeMotion(PORTRAIT.brain.cx, PORTRAIT.brain.cy, time, w);
   for (const n of neurons) {
@@ -2166,15 +2222,28 @@ function drawLife(time) {
     n.y = n.oy + hdy / h + (moving ? Math.cos(time / 2100 + n.seed * 1.3) * 0.006 : 0);
   }
 
-  // Связи — липкие нити: провисают, покачиваются, у курсора ярче.
+  // Связи — нити: провисают, покачиваются, у курсора ярче.
+  // Рисуются пачками (по толщине и яркости) — несколько проходов вместо сотни.
   const amber = night ? "255, 205, 140" : "245, 135, 35";
+  const synBatches = new Map();
   for (const s of synapses) {
     const a = neurons[s.a], c = neurons[s.b];
     const boost = nearCursor((a.x + c.x) / 2, (a.y + c.y) / 2);
     if (s.wd == null) s.wd = 0.6 + Math.random() * 1.1;
+    const key = Math.round((s.wd + boost * 0.7) * 3) + "|" + Math.round(boost * 4);
+    let path = synBatches.get(key);
+    if (!path) synBatches.set(key, (path = new Path2D()));
     const { pts } = synapseCurve(s.a, s.b, time, w, h);
-    ctx.fillStyle = `rgba(${amber}, ${0.58 + boost * 0.4})`;
-    gooRibbon(ctx, pts, (i) => (s.wd + boost * 0.7) * (1.25 - 0.55 * Math.sin((Math.PI * i) / (pts.length - 1))));
+    path.moveTo(pts[0][0], pts[0][1]);
+    for (let k = 1; k < pts.length; k++) path.lineTo(pts[k][0], pts[k][1]);
+  }
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  for (const [key, path] of synBatches) {
+    const [wq, bq] = key.split("|").map(Number);
+    ctx.strokeStyle = `rgba(${amber}, ${0.58 + (bq / 4) * 0.4})`;
+    ctx.lineWidth = Math.max(0.5, wq / 3) * 0.85;
+    ctx.stroke(path);
   }
   // Свои импульсы: реже без курсора, чаще под курсором.
   const rate = 700 - hover.power * 520;
@@ -2208,7 +2277,7 @@ function drawLife(time) {
   const [cdx, cdy] = lifeMotion(hx0, hy0, time, w);           // сердце дышит вместе с грудью
   const hx = hx0 + cdx / w, hy = hy0 + cdy / h;
   ctx.globalCompositeOperation = "source-over";      // сердце рисуется обычным смешиванием, без пересвета
-  drawHeart(ctx, hx * w, hy * h, w * 0.00125, beat, time, night);
+  drawHeartCached(ctx, hx * w, hy * h, w * 0.00125, beat, time, night);
   ctx.globalCompositeOperation = night ? "lighter" : "source-over";
 
   // Импульсы от сердца: частица с инерцией летит по точкам пути. Она разгоняется,
@@ -2337,15 +2406,12 @@ function drawLife(time) {
     const x = n.x * w, y = n.y * h;
     const g = Math.min(1, 0.35 + n.glow + nearCursor(n.x, n.y) * 0.9);   // нейроны всегда чуть светятся
     const warm = night ? [255, 215, 150] : [255, 140, 30];
-    const rgb = warm.map((v, i) => Math.round(v + ([255, 80, 80][i] - v) * n.red));
+    const redQ = Math.round(n.red * 10) / 10;
+    const rgb = warm.map((v, i) => Math.round(v + ([255, 80, 80][i] - v) * redQ));
     if (g > 0.02) {
-      const halo = ctx.createRadialGradient(x, y, 0, x, y, 10);
-      halo.addColorStop(0, `rgba(${rgb.join(",")}, ${0.75 * g})`);
-      halo.addColorStop(1, `rgba(${rgb.join(",")}, 0)`);
-      ctx.fillStyle = halo;
-      ctx.beginPath();
-      ctx.arc(x, y, 10, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.globalAlpha = g;
+      ctx.drawImage(haloSprite(rgb), x - 10, y - 10, 20, 20);
+      ctx.globalAlpha = 1;
     }
     ctx.fillStyle = `rgba(${rgb.join(",")}, ${0.6 + 0.4 * g})`;
     ctx.beginPath();
@@ -2700,6 +2766,7 @@ heroSection.addEventListener("pointerleave", () => {
     }
     function drawStrand(s, col, hl) {
       const n = s.pts.length - 1;
+      for (const p of s.pts) grow(p.x, p.y, s.w * 2 + 6);
       const t = s.tension;
       const neck = clamp((t - 0.72) / 0.28, 0, 1);              // перед разрывом нить «вытягивается» и истончается
       const recoil = s.state === 'recoil';
@@ -2738,6 +2805,23 @@ heroSection.addEventListener("pointerleave", () => {
       }
     }
 
+    // участок экрана, где в этом кадре что-то нарисовано
+    let dirty = null;
+    function grow(x, y, m) {
+      if (!dirty) dirty = { x0: x - m, y0: y - m, x1: x + m, y1: y + m };
+      else { dirty.x0 = Math.min(dirty.x0, x - m); dirty.y0 = Math.min(dirty.y0, y - m); dirty.x1 = Math.max(dirty.x1, x + m); dirty.y1 = Math.max(dirty.y1, y + m); }
+    }
+    // цвета нитей читаются из CSS один раз и обновляются только при смене темы
+    let colorCache = null;
+    function strandColors() {
+      if (!colorCache) {
+        const cs = getComputedStyle(btn);
+        colorCache = { col: cs.getPropertyValue('--sab-strand').trim() || C.color,
+                       hl: cs.getPropertyValue('--sab-strand-hl').trim() || 'rgba(255,255,255,.3)' };
+      }
+      return colorCache;
+    }
+    new MutationObserver(() => { colorCache = null; }).observe(root, { attributes: true, attributeFilter: ['class'] });
     // ---------- кадр ----------
     // Анимация работает только пока есть что рисовать. В покое цикл полностью остановлен,
     // а будит его движение курсора рядом с кнопкой — так страница не нагружает процессор.
@@ -2771,17 +2855,17 @@ heroSection.addEventListener("pointerleave", () => {
         }
       }
 
-      ctx.clearRect(0, 0, W, H);
+      // стираем только участок, где нити были в прошлом кадре, а не весь экран
+      if (dirty) ctx.clearRect(dirty.x0, dirty.y0, dirty.x1 - dirty.x0, dirty.y1 - dirty.y0);
+      dirty = null;
       const busy = strands.some(s => s.state !== 'dead') || drips.length || drops.length;
       // всё втянулось и курсор далеко — засыпаем
       if (!busy && !(de < near * 1.5 && mouse.x > -1e3)) { running = false; return; }
       raf = requestAnimationFrame(frame);
       if (!busy) return;
 
-      const col = getComputedStyle(btn).getPropertyValue('--sab-strand').trim() || C.color;
-      const hl = getComputedStyle(btn).getPropertyValue('--sab-strand-hl').trim() || 'rgba(255,255,255,.3)';
+      const { col, hl } = strandColors();
       ctx.save();
-      ctx.beginPath(); ctx.rect(0, 0, W, H); pill(g); ctx.clip('evenodd');   // под кнопкой нитей не видно
 
       // 1) центральные, 2) боковые (им нужна уже посчитанная центральная)
       for (const pass of [true, false]) for (const s of strands) {
@@ -2791,7 +2875,7 @@ heroSection.addEventListener("pointerleave", () => {
           // оторвалась: держится только за кнопку, укорачивается и пружинит обратно
           s.rest *= C.recoil;
           integrate(s.pts, true, false);
-          constrain(s.pts, s.rest, s.anchor, null, 8);
+          constrain(s.pts, s.rest, s.anchor, null, 6);
           s.tension = 0;
           if (s.rest < 0.35) {
             s.state = 'dead'; s.diedAt = now;
@@ -2831,7 +2915,7 @@ heroSection.addEventListener("pointerleave", () => {
 
         integrate(s.pts, true, true);
         if (!s.core && s.state === 'live') braid(s, now);
-        constrain(s.pts, Math.max(0.01, D / C.segs * C.slack), s.A, s.tip, 10);
+        constrain(s.pts, Math.max(0.01, D / C.segs * C.slack), s.A, s.tip, 7);
         tremble(s, now, C.tremble * (s.core ? 1 : 0.6));
         drawStrand(s, col, hl);
       }
@@ -2842,6 +2926,7 @@ heroSection.addEventListener("pointerleave", () => {
         if (t > 1700) return false;
         const L = t < 300 ? easeOut(t / 300) : t < 1000 ? 1 : 1 - Math.pow(clamp((t - 1000) / 700, 0, 1), 2);
         const ex = g.l + d.x, ey = g.t + d.y;
+        grow(ex, ey + d.max / 2, d.max + 8);
         const len = d.max * L, sway = Math.sin(now * 0.004 + d.seed) * 1.4 * L;
         ctx.fillStyle = col; ctx.strokeStyle = col; ctx.lineCap = 'round';
         ctx.beginPath(); ctx.ellipse(ex, ey, d.w * 2.2, d.w * 1.3 + 1, 0, 0, Math.PI * 2); ctx.fill();
@@ -2859,8 +2944,13 @@ heroSection.addEventListener("pointerleave", () => {
         ctx.fillStyle = col;
         ctx.beginPath(); ctx.arc(d.x, d.y, d.r * (1 - t / 900), 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 1;
+        grow(d.x, d.y, d.r + 4);
         return true;
       });
+      // под кнопкой нитей не видно: вырезаем её форму (дешевле, чем маска на весь экран)
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.beginPath(); pill(g); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
       ctx.restore();
     }
 
@@ -3046,7 +3136,7 @@ heroSection.addEventListener("pointerleave", () => {
   }
   function constrain(pts, rest, A, B) {
     const last = pts.length - 1;
-    for (let it = 0; it < 10; it++) {
+    for (let it = 0; it < 7; it++) {
       pts[0].x = A.x; pts[0].y = A.y;
       if (B) { pts[last].x = B.x; pts[last].y = B.y; }
       for (let i = 0; i < last; i++) {
@@ -3064,7 +3154,13 @@ heroSection.addEventListener("pointerleave", () => {
     const f = clamp(t, 0, 1) * (pts.length - 1), i = Math.min(pts.length - 2, Math.floor(f)), k = f - i;
     return { x: pts[i].x + (pts[i + 1].x - pts[i].x) * k, y: pts[i].y + (pts[i + 1].y - pts[i].y) * k };
   }
+  let dirty = null;
+  function grow(x, y, m) {
+    if (!dirty) dirty = { x0: x - m, y0: y - m, x1: x + m, y1: y + m };
+    else { dirty.x0 = Math.min(dirty.x0, x - m); dirty.y0 = Math.min(dirty.y0, y - m); dirty.x1 = Math.max(dirty.x1, x + m); dirty.y1 = Math.max(dirty.y1, y + m); }
+  }
   function ribbon(pts, widthAt) {
+    for (const p of pts) grow(p.x, p.y, 8);
     const n = pts.length, L = [], R = [];
     for (let i = 0; i < n; i++) {
       const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)];
@@ -3091,16 +3187,17 @@ heroSection.addEventListener("pointerleave", () => {
 
   // Волокно, коснувшись красного сосуда, обвивается вокруг него спиралью, а сосуд чуть тянется навстречу.
   function entwine(s, now) {
-    const R = 26, reds = strands.filter((o) => o.heart && o.state === "live");
+    const R = 26, R2 = R * R, reds = strands.filter((o) => o.heart && o.state === "live");
     if (!reds.length) return;
     for (let j = 2; j < CFG.segs - 1; j++) {
       const p = s.pts[j];
-      let best = null, bd = R, bi = 0;
-      for (const o of reds) for (let i = 1; i < CFG.segs; i++) {
-        const q = o.pts[i], d = Math.hypot(q.x - p.x, q.y - p.y);
-        if (d < bd) { bd = d; best = o; bi = i; }
+      let best = null, bd2 = R2, bi = 0;
+      for (const o of reds) for (let i = 1; i < CFG.segs; i += 1) {
+        const q = o.pts[i], ddx = q.x - p.x, ddy = q.y - p.y, d2 = ddx * ddx + ddy * ddy;
+        if (d2 < bd2) { bd2 = d2; best = o; bi = i; }
       }
       if (!best) continue;
+      const bd = Math.sqrt(bd2);
       const q = best.pts[bi], q2 = best.pts[bi + 1];
       let tx = q2.x - q.x, ty = q2.y - q.y; const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
       const twist = Math.sin(j * 1.15 + s.seed + now * 0.004) * (2.2 + best.w);
@@ -3147,7 +3244,9 @@ heroSection.addEventListener("pointerleave", () => {
       }
     }
 
-    ctx.clearRect(0, 0, W, H);
+    // стираем только участок прошлого кадра, а не весь экран
+    if (dirty) ctx.clearRect(dirty.x0, dirty.y0, dirty.x1 - dirty.x0, dirty.y1 - dirty.y0);
+    dirty = null;
     const busy = strands.some((s) => s.state !== "dead") || flashes.length;
     if (!busy && !inZone) { running = false; return; }
     raf = requestAnimationFrame(frame);
@@ -3209,8 +3308,11 @@ heroSection.addEventListener("pointerleave", () => {
         return false;
       }
       const c = im.red ? col.hiH : col.hiN, base = im.red ? col.heart : col.nerve;
-      ctx.shadowColor = `rgba(${base}, 0.9)`;
-      ctx.shadowBlur = 8;
+      // свечение — полупрозрачный ореол вместо размытой тени (в разы дешевле)
+      const head = pointAt(im.s.pts, t);
+      grow(head.x, head.y, 12);
+      ctx.fillStyle = `rgba(${base}, 0.22)`;
+      ctx.beginPath(); ctx.arc(head.x, head.y, im.red ? 7 : 5.5, 0, Math.PI * 2); ctx.fill();
       for (let i = 0; i < 7; i++) {
         const tt = t - i * 0.025;
         if (tt < 0) break;
@@ -3226,6 +3328,7 @@ heroSection.addEventListener("pointerleave", () => {
       const t = (now - f.born) / 420;
       if (t >= 1) return false;
       const base = f.red ? col.heart : col.nerve, rad = 6 + t * 14;
+      grow(f.x, f.y, rad + 2);
       const g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, rad);
       g.addColorStop(0, `rgba(${f.red ? col.hiH : col.hiN}, ${0.85 * (1 - t)})`);
       g.addColorStop(1, `rgba(${base}, 0)`);
