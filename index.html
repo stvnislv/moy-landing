@@ -782,6 +782,11 @@ html.night .slit { background: #050505; box-shadow: 0 1px 0 rgba(255, 255, 255, 
 .form .btn { justify-self: start; margin-top: 0.25rem; }
 .form-done { margin-top: 1.5rem; font-size: 1.125rem; }
 .form-done[hidden] { display: none; }
+.payment-block { margin-top: 2rem; }
+.payment-form { margin-top: 1rem; }
+.payment-form .btn { justify-self: start; margin-top: 0.25rem; }
+.payment-status { margin-top: 1rem; min-height: 1.5em; }
+.payment-status[hidden] { display: none; }
 
 /* Подвал */
 .footer {
@@ -1318,6 +1323,22 @@ html.night .sab-btn { --sab-strand: #d6d2cb; --sab-strand-hl: rgba(0,0,0,.22); }
       <h2 id="services-title" class="section-title">Что я делаю</h2>
       <ul class="services" data-services></ul>
       <p class="note muted">Точную цену назову, когда узнаю задачу.</p>
+      <div class="payment-block">
+        <p class="note muted">Оплата доступна для уже согласованной услуги. Сейчас включён только тестовый режим.</p>
+        <p class="note muted">Имя и почта будут переданы ЮKassa для оформления платежа.</p>
+        <form id="payment-form" class="form payment-form" aria-label="Оплата согласованной услуги">
+          <div class="field">
+            <label for="payment-name">Имя</label>
+            <input id="payment-name" name="name" autocomplete="name" maxlength="100" required>
+          </div>
+          <div class="field">
+            <label for="payment-email">Электронная почта</label>
+            <input id="payment-email" name="email" type="email" autocomplete="email" maxlength="254" required>
+          </div>
+          <button type="submit" class="btn btn-primary">Оплатить согласованную услугу</button>
+        </form>
+        <p class="payment-status" data-payment-status role="status" aria-live="polite" tabindex="-1" hidden></p>
+      </div>
     </section>
 
     <section id="works" class="section split reveal" aria-labelledby="works-title">
@@ -1555,6 +1576,99 @@ for (const service of site.services) {
     el("p", "price", formatPrice(service.priceFrom)),
   );
   services.append(row);
+}
+
+// Оплата доступна только на размещённом сайте с настроенными Netlify Functions.
+const paymentForm = document.querySelector("#payment-form");
+const paymentStatus = document.querySelector("[data-payment-status]");
+const paymentButton = paymentForm.querySelector("[type=submit]");
+const paymentMessages = {
+  name: "Укажите имя (не более 100 символов).",
+  email: "Укажите корректный адрес электронной почты.",
+};
+
+function showPaymentStatus(message) {
+  paymentStatus.textContent = message;
+  paymentStatus.hidden = false;
+}
+
+for (const [field, message] of Object.entries(paymentMessages)) {
+  const input = paymentForm.elements[field];
+  input.addEventListener("input", () => input.setCustomValidity(""));
+  input.addEventListener("invalid", () => {
+    if (!input.value.trim()) input.setCustomValidity(message);
+  });
+}
+
+async function waitForPaymentWebhook(orderId) {
+  paymentForm.hidden = true;
+  showPaymentStatus("Платёж создан. Ждём подтверждение ЮKassa…");
+  paymentStatus.focus();
+
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    try {
+      const response = await fetch(`/.netlify/functions/payment-status?orderId=${encodeURIComponent(orderId)}`, {
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error("Не удалось получить статус платежа.");
+      const result = await response.json();
+
+      if (result.status === "succeeded") {
+        showPaymentStatus("Оплата подтверждена.");
+        return;
+      }
+      if (result.status === "canceled" || result.status === "failed") {
+        showPaymentStatus(result.status === "canceled" ? "Платёж отменён." : "Не удалось создать платёж.");
+        paymentForm.hidden = false;
+        return;
+      }
+    } catch {
+      showPaymentStatus("Ждём подтверждение ЮKassa. Статус обновится автоматически.");
+    }
+  }
+
+  showPaymentStatus("Подтверждение пока не получено. Обновите страницу позже, чтобы проверить статус.");
+}
+
+paymentForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  for (const [field, message] of Object.entries(paymentMessages)) {
+    const input = paymentForm.elements[field];
+    input.setCustomValidity(input.value.trim() ? "" : message);
+  }
+  if (!paymentForm.reportValidity()) return;
+
+  paymentButton.disabled = true;
+  paymentButton.textContent = "Создаю платёж…";
+  showPaymentStatus("");
+
+  try {
+    const response = await fetch("/.netlify/functions/create-payment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: paymentForm.elements.name.value.trim(),
+        email: paymentForm.elements.email.value.trim(),
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Не удалось создать платёж.");
+
+    const confirmationUrl = new URL(result.confirmationUrl);
+    if (confirmationUrl.protocol !== "https:") throw new Error("ЮKassa вернула некорректную ссылку.");
+    window.location.assign(confirmationUrl.href);
+  } catch (error) {
+    showPaymentStatus(error instanceof Error ? error.message : "Не удалось создать платёж.");
+    paymentButton.disabled = false;
+    paymentButton.textContent = "Оплатить согласованную услугу";
+  }
+});
+
+const returnedOrderId = new URLSearchParams(window.location.search).get("payment");
+if (returnedOrderId && /^[0-9a-f-]{36}$/i.test(returnedOrderId)) {
+  waitForPaymentWebhook(returnedOrderId);
 }
 
 // Работы

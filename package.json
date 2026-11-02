@@ -6,10 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "test": "node --test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@fontsource/onest": "^5.3.1",
+    "@netlify/blobs": "^10.0.0",
     "next": "^16.4.3",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
