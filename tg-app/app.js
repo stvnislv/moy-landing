@@ -347,9 +347,9 @@
   let current = "home";
   let running = [];
 
-  // from — откуда стартует уходящий экран: после свайпа он уже сдвинут пальцем, и переход продолжается с этого места.
-  function show(name, from0 = { x: 0, opacity: 1 }) {
+  function show(name) {
     if (!screens[name]) return;
+    settleSwipe();                                   // свайп ещё доезжает — сначала закончить его
     if (name === current) {                          // повторное нажатие — наверх экрана
       screens[name].scrollTo({ top: 0, behavior: calm.matches ? "auto" : "smooth" });
       return;
@@ -371,13 +371,11 @@
     updateMenu();
     if (name === "home") playHome();             // приветствие загорается заново
 
-    if (calm.matches || !to.animate) { from.hidden = true; from.style.transform = ""; from.style.opacity = ""; return; }
+    if (calm.matches || !to.animate) { from.hidden = true; return; }
     // Старый экран уходит в сторону и гаснет (200 мс), новый въезжает с другой стороны (260 мс).
     const ease = "cubic-bezier(0.22, 1, 0.36, 1)";
-    from.style.transform = "";                       // сдвиг от пальца дальше ведёт анимация
-    from.style.opacity = "";
     const out = from.animate(
-      [{ opacity: from0.opacity, transform: `translateX(${from0.x}px)` }, { opacity: 0, transform: `translateX(${-dir * 28 + from0.x * 0.5}px)` }],
+      [{ opacity: 1, transform: "translateX(0)" }, { opacity: 0, transform: `translateX(${-dir * 28}px)` }],
       { duration: 200, easing: "ease-in", fill: "forwards" },
     );
     const enter = to.animate(
@@ -418,58 +416,106 @@
   // ============================================================
   // Свайпы: влево — следующий экран, вправо — предыдущий (в порядке кнопок меню)
   // ============================================================
-  // Экран едет за пальцем (с сопротивлением). Отпустил дальше 70 px или быстрым взмахом —
-  // переход на соседний экран; иначе экран пружинит обратно. На первом и последнем экране
-  // палец упирается, как в резинку. Вертикальную прокрутку браузер ведёт сам (touch-action: pan-y),
-  // поэтому свайп начинается, только если палец идёт заметно больше вбок, чем вниз.
+  // Как в нативных приложениях: оба экрана — текущий и соседний — едут за пальцем 1:1,
+  // соседний выезжает сбоку вплотную. Отпустил дальше трети ширины или взмахом — переход;
+  // иначе экраны возвращаются. После отпускания движение продолжается с той скоростью,
+  // с какой шёл палец, и плавно замедляется. На первом и последнем экране — «резинка».
+  // Вертикальную прокрутку браузер ведёт сам (touch-action: pan-y), поэтому свайп начинается,
+  // только если палец идёт заметно больше вбок, чем вниз.
   const screensBox = $(".screens");
-  const swipe = { id: null, active: false, x0: 0, y0: 0, t0: 0, x: 0, opacity: 1, blockClick: -Infinity };
+  const swipe = { id: null, active: false, x0: 0, y0: 0, x: 0, dir: 0, peer: null, samples: [], anims: [], pending: null, blockClick: -Infinity };
+  const place = (el, x) => { el.style.transform = `translate3d(${x}px, 0, 0)`; };
+  const unplace = (el) => { el.style.transform = ""; el.style.willChange = ""; };
+  // Если предыдущий свайп ещё доезжает — сразу к концу.
+  function settleSwipe() {
+    if (!swipe.pending) return;
+    swipe.anims.forEach((a) => a.cancel());
+    swipe.anims = [];
+    const done = swipe.pending;
+    swipe.pending = null;
+    done();
+  }
+  // Показать соседний экран с нужной стороны (dir: 1 — следующий, −1 — предыдущий).
+  function preparePeer(dir) {
+    if (swipe.dir === dir) return;
+    if (swipe.peer) { swipe.peer.hidden = true; unplace(swipe.peer); }
+    swipe.dir = dir;
+    const name = order[order.indexOf(current) + dir];
+    swipe.peer = name ? screens[name] : null;
+    if (!swipe.peer) return;
+    swipe.peer.hidden = false;
+    swipe.peer.inert = true;                                 // пока едет — не ловит касания
+    swipe.peer.scrollTop = 0;
+    swipe.peer.style.willChange = "transform";
+    if (name === "home") playHome();                         // приветствие загорается, пока «Главная» выезжает
+  }
   screensBox.addEventListener("pointerdown", (e) => {
     if (e.pointerType === "mouse") return;                   // мышью листают меню, а не экран
     if (e.target.closest(".sab-btn")) return;                // с кнопки с именем палец тянет нити
     if (e.clientX < 20 || e.clientX > window.innerWidth - 20) return;   // у краёв — системный жест «назад»
-    Object.assign(swipe, { id: e.pointerId, active: false, x0: e.clientX, y0: e.clientY, t0: performance.now(), x: 0, opacity: 1 });
+    settleSwipe();
+    Object.assign(swipe, { id: e.pointerId, active: false, x0: e.clientX, y0: e.clientY, x: 0, dir: 0, peer: null, samples: [] });
   });
   screensBox.addEventListener("pointermove", (e) => {
     if (e.pointerId !== swipe.id) return;
     const dx = e.clientX - swipe.x0, dy = e.clientY - swipe.y0;
     if (!swipe.active) {
-      if (Math.abs(dx) < 12 && Math.abs(dy) < 12) return;
+      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
       if (Math.abs(dx) < Math.abs(dy) * 1.3) { swipe.id = null; return; }   // это прокрутка вниз-вверх
       swipe.active = true;
-      running.forEach((a) => a.finish());                    // недоигранный переход — сразу к концу
+      running.forEach((a) => a.finish());                    // недоигранный переход по меню — сразу к концу
+      screens[current].style.willChange = "transform";
     }
-    const i = order.indexOf(current);
-    const edge = (dx > 0 && i === 0) || (dx < 0 && i === order.length - 1);
-    swipe.x = dx * (edge ? 0.12 : 0.4);
-    swipe.opacity = 1 - Math.min(0.45, Math.abs(swipe.x) / 260);
-    const el = screens[current];
-    el.style.transform = `translateX(${swipe.x}px)`;
-    el.style.opacity = String(swipe.opacity);
+    preparePeer(dx < 0 ? 1 : -1);
+    const W = screensBox.clientWidth;
+    // Есть сосед — экран идёт точно за пальцем; нет — тянется туго, всё слабее с расстоянием.
+    swipe.x = swipe.peer ? dx : dx / (1 + Math.abs(dx) / (W * 0.25)) * 0.5;
+    place(screens[current], swipe.x);
+    if (swipe.peer) place(swipe.peer, swipe.x + swipe.dir * W);
+    swipe.samples.push({ t: e.timeStamp, x: e.clientX });
+    if (swipe.samples.length > 6) swipe.samples.shift();
   });
   function endSwipe(e) {
     if (e.pointerId !== swipe.id) return;
     swipe.id = null;
     if (!swipe.active) return;
     swipe.blockClick = performance.now();                    // палец отпустили над кнопкой — это не нажатие
-    const dx = e.clientX - swipe.x0;
-    const fast = Math.abs(dx) / Math.max(1, performance.now() - swipe.t0) > 0.45;   // px/мс
-    const next = order[order.indexOf(current) + (dx < 0 ? 1 : -1)];
-    if (e.type === "pointerup" && next && (Math.abs(dx) > 70 || (fast && Math.abs(dx) > 30))) {
-      haptic.select();
-      show(next, { x: swipe.x, opacity: swipe.opacity });
-      return;
-    }
-    // не дотянул — пружиним обратно
-    const el = screens[current];
-    el.style.transform = "";
-    el.style.opacity = "";
-    if (!calm.matches && el.animate) {
-      el.animate(
-        [{ transform: `translateX(${swipe.x}px)`, opacity: swipe.opacity }, { transform: "translateX(0)", opacity: 1 }],
-        { duration: 240, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
-      );
-    }
+    // Скорость пальца в последние ~0,1 с, px/мс (со знаком: минус — влево).
+    const last = swipe.samples[swipe.samples.length - 1];
+    const first = swipe.samples.find((p) => last && last.t - p.t < 100) || last;
+    const v = last && first && last.t > first.t ? (last.x - first.x) / (last.t - first.t) : 0;
+    const W = screensBox.clientWidth;
+    const from = screens[current], peer = swipe.peer, dir = swipe.dir, x = swipe.x;
+    const go = e.type === "pointerup" && peer &&
+      (Math.abs(x) > W * 0.3 || (Math.abs(v) > 0.3 && Math.sign(v) === -dir));
+    const end = go ? -dir * W : 0;                           // где окажется текущий экран
+    // Время — по оставшемуся пути и скорости пальца: быстрый взмах доезжает быстро.
+    const speed = Math.max(Math.abs(v), 1);
+    const duration = calm.matches ? 0 : Math.round(Math.min(420, Math.max(200, (Math.abs(end - x) / speed) * 1.8)));
+    const ease = "cubic-bezier(0.22, 0.9, 0.3, 1)";
+    const done = () => {
+      unplace(from);
+      if (go) {
+        from.hidden = true;
+        from.inert = true;
+        unplace(peer);
+        peer.inert = false;
+        current = order[order.indexOf(current) + dir];
+        updateMenu();
+      } else if (peer) {
+        peer.hidden = true;
+        unplace(peer);
+      }
+    };
+    if (go) haptic.select();
+    place(from, end);
+    if (peer) place(peer, end + dir * W);
+    if (!duration || !from.animate) { done(); return; }
+    swipe.anims = [from.animate([{ transform: `translate3d(${x}px, 0, 0)` }, { transform: `translate3d(${end}px, 0, 0)` }], { duration, easing: ease })];
+    if (peer) swipe.anims.push(peer.animate([{ transform: `translate3d(${x + dir * W}px, 0, 0)` }, { transform: `translate3d(${end + dir * W}px, 0, 0)` }], { duration, easing: ease }));
+    swipe.pending = done;
+    swipe.anims[0].onfinish = settleSwipe;
+    setTimeout(settleSwipe, duration + 40);                  // запасной путь, если браузер приостановил анимацию
   }
   screensBox.addEventListener("pointerup", endSwipe);
   screensBox.addEventListener("pointercancel", endSwipe);
