@@ -75,16 +75,16 @@ body {
 /* ---------- Каркас: экраны и нижнее меню ---------- */
 .app {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  /* Высоту видимой области сообщает Telegram; вне Telegram — весь экран. */
-  height: var(--tg-viewport-stable-height, 100%);
+  /* В обычном браузере — ровно видимая область, между панелями браузера. */
+  inset: 0;
   max-width: 430px;              /* только телефон: на широком окне — колонка по центру */
   margin: 0 auto;
   overflow: hidden;
 }
 /* Ночью — тёмный титан: графит с тёплым отливом и мягким косым бликом. */
+/* Внутри Telegram высоту видимой области сообщает Telegram. Вне Telegram эту переменную
+   SDK ставит в 100vh — на телефоне это выше видимой области, и нижнее меню уходило под панель браузера. */
+html.in-tg .app { bottom: auto; height: var(--tg-viewport-stable-height, 100%); }
 html.night .app {
   background:
     linear-gradient(115deg, rgba(255, 255, 255, 0.035), transparent 35%, rgba(255, 255, 255, 0.02) 60%, transparent 80%),
@@ -114,6 +114,7 @@ html.night .backdrop { opacity: 0; }
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;           /* вертикально прокручивает браузер, горизонтальные свайпы — наши (app.js) */
   padding: calc(24px + var(--safe-top)) 16px calc(var(--tabbar-h) + 32px + var(--safe-bottom));
 }
 .screen[hidden] { display: none; }

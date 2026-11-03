@@ -11,8 +11,8 @@
 <meta name="theme-color" content="#f3f3f1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%2319191b'/%3E%3Ctext x='32' y='34' fill='%23f3f3f1' font-family='system-ui,sans-serif' font-size='34' font-weight='500' text-anchor='middle' dominant-baseline='middle'%3ES%3C/text%3E%3C/svg%3E">
 <!-- SDK Telegram: данные пользователя, тема, кнопка «Назад», вибрация.
-     Вне Telegram (или без интернета) приложение работает и без него. -->
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
+     Локальная копия (см. начало файла): с telegram.org без VPN в России не грузится. -->
+<script src="telegram-web-app.js"></script>
 <!-- Тема ставится до отрисовки, чтобы не мигал светлый экран в тёмном Telegram. -->
 <script>
   (function () {
@@ -22,6 +22,8 @@
     try { saved = localStorage.getItem("theme"); } catch (e) {}
     var dark = saved ? saved === "night" : tg && tg.initData ? tg.colorScheme === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
     if (dark) document.documentElement.classList.add("night");
+    // Внутри Telegram высоту окна сообщает Telegram; в обычном браузере — своя (см. .app в styles.css).
+    if (tg && tg.initData) document.documentElement.classList.add("in-tg");
   })();
 </script>
 <link rel="stylesheet" href="styles.css">

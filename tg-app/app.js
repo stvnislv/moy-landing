@@ -326,7 +326,7 @@
   // Слушаем в фазе перехвата — до остальных обработчиков, чтобы мерцание шло и у меню, и у переключателя темы.
   document.addEventListener("click", (event) => {
     const button = event.target.closest("button");
-    if (!button) return;
+    if (!button || performance.now() - swipe.blockClick < 350) return;   // после свайпа — не нажатие
     button.classList.remove("flicker");
     void button.offsetWidth;                         // перезапуск, если нажали снова, пока мерцает
     button.classList.add("flicker");
@@ -347,7 +347,8 @@
   let current = "home";
   let running = [];
 
-  function show(name) {
+  // from — откуда стартует уходящий экран: после свайпа он уже сдвинут пальцем, и переход продолжается с этого места.
+  function show(name, from0 = { x: 0, opacity: 1 }) {
     if (!screens[name]) return;
     if (name === current) {                          // повторное нажатие — наверх экрана
       screens[name].scrollTo({ top: 0, behavior: calm.matches ? "auto" : "smooth" });
@@ -370,11 +371,13 @@
     updateMenu();
     if (name === "home") playHome();             // приветствие загорается заново
 
-    if (calm.matches || !to.animate) { from.hidden = true; return; }
+    if (calm.matches || !to.animate) { from.hidden = true; from.style.transform = ""; from.style.opacity = ""; return; }
     // Старый экран уходит в сторону и гаснет (200 мс), новый въезжает с другой стороны (260 мс).
     const ease = "cubic-bezier(0.22, 1, 0.36, 1)";
+    from.style.transform = "";                       // сдвиг от пальца дальше ведёт анимация
+    from.style.opacity = "";
     const out = from.animate(
-      [{ opacity: 1, transform: "translateX(0)" }, { opacity: 0, transform: `translateX(${-dir * 28}px)` }],
+      [{ opacity: from0.opacity, transform: `translateX(${from0.x}px)` }, { opacity: 0, transform: `translateX(${-dir * 28 + from0.x * 0.5}px)` }],
       { duration: 200, easing: "ease-in", fill: "forwards" },
     );
     const enter = to.animate(
@@ -411,6 +414,69 @@
     show(tab.dataset.tab);
   }));
   if (supports("6.1")) tg.BackButton.onClick(() => show("home"));
+
+  // ============================================================
+  // Свайпы: влево — следующий экран, вправо — предыдущий (в порядке кнопок меню)
+  // ============================================================
+  // Экран едет за пальцем (с сопротивлением). Отпустил дальше 70 px или быстрым взмахом —
+  // переход на соседний экран; иначе экран пружинит обратно. На первом и последнем экране
+  // палец упирается, как в резинку. Вертикальную прокрутку браузер ведёт сам (touch-action: pan-y),
+  // поэтому свайп начинается, только если палец идёт заметно больше вбок, чем вниз.
+  const screensBox = $(".screens");
+  const swipe = { id: null, active: false, x0: 0, y0: 0, t0: 0, x: 0, opacity: 1, blockClick: -Infinity };
+  screensBox.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "mouse") return;                   // мышью листают меню, а не экран
+    if (e.target.closest(".sab-btn")) return;                // с кнопки с именем палец тянет нити
+    if (e.clientX < 20 || e.clientX > window.innerWidth - 20) return;   // у краёв — системный жест «назад»
+    Object.assign(swipe, { id: e.pointerId, active: false, x0: e.clientX, y0: e.clientY, t0: performance.now(), x: 0, opacity: 1 });
+  });
+  screensBox.addEventListener("pointermove", (e) => {
+    if (e.pointerId !== swipe.id) return;
+    const dx = e.clientX - swipe.x0, dy = e.clientY - swipe.y0;
+    if (!swipe.active) {
+      if (Math.abs(dx) < 12 && Math.abs(dy) < 12) return;
+      if (Math.abs(dx) < Math.abs(dy) * 1.3) { swipe.id = null; return; }   // это прокрутка вниз-вверх
+      swipe.active = true;
+      running.forEach((a) => a.finish());                    // недоигранный переход — сразу к концу
+    }
+    const i = order.indexOf(current);
+    const edge = (dx > 0 && i === 0) || (dx < 0 && i === order.length - 1);
+    swipe.x = dx * (edge ? 0.12 : 0.4);
+    swipe.opacity = 1 - Math.min(0.45, Math.abs(swipe.x) / 260);
+    const el = screens[current];
+    el.style.transform = `translateX(${swipe.x}px)`;
+    el.style.opacity = String(swipe.opacity);
+  });
+  function endSwipe(e) {
+    if (e.pointerId !== swipe.id) return;
+    swipe.id = null;
+    if (!swipe.active) return;
+    swipe.blockClick = performance.now();                    // палец отпустили над кнопкой — это не нажатие
+    const dx = e.clientX - swipe.x0;
+    const fast = Math.abs(dx) / Math.max(1, performance.now() - swipe.t0) > 0.45;   // px/мс
+    const next = order[order.indexOf(current) + (dx < 0 ? 1 : -1)];
+    if (e.type === "pointerup" && next && (Math.abs(dx) > 70 || (fast && Math.abs(dx) > 30))) {
+      haptic.select();
+      show(next, { x: swipe.x, opacity: swipe.opacity });
+      return;
+    }
+    // не дотянул — пружиним обратно
+    const el = screens[current];
+    el.style.transform = "";
+    el.style.opacity = "";
+    if (!calm.matches && el.animate) {
+      el.animate(
+        [{ transform: `translateX(${swipe.x}px)`, opacity: swipe.opacity }, { transform: "translateX(0)", opacity: 1 }],
+        { duration: 240, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+      );
+    }
+  }
+  screensBox.addEventListener("pointerup", endSwipe);
+  screensBox.addEventListener("pointercancel", endSwipe);
+  // После свайпа браузер может посчитать отпускание пальца нажатием на кнопку под ним — гасим такое нажатие.
+  document.addEventListener("click", (e) => {
+    if (performance.now() - swipe.blockClick < 350) { e.preventDefault(); e.stopPropagation(); }
+  }, true);
 
   // Открыть сразу нужный экран: в Telegram — ссылкой t.me/<бот>/<приложение>?startapp=services,
   // в браузере — адресом tg-app/#services.
