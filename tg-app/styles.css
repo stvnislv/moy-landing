@@ -51,6 +51,9 @@ html {
   line-height: 1.5;
   letter-spacing: -0.012em;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-kerning: normal;
   -webkit-text-size-adjust: 100%;
   transition: background-color 0.6s ease, color 0.6s ease;
 }
@@ -181,8 +184,8 @@ html.night .glass {
     inset 0 1.5px 0 rgba(255, 255, 255, 0.38),
     inset 0 -1px 0 rgba(255, 255, 255, 0.12),
     inset 0 -12px 16px -8px rgba(0, 0, 0, 0.95),
-    0 2px 3px rgba(20, 15, 35, 0.35),
-    0 14px 22px -8px rgba(40, 30, 70, 0.42);
+    0 2px 3px rgba(25, 20, 15, 0.35),
+    0 14px 24px -8px rgba(255, 170, 80, 0.5);      /* тёплое свечение, как свет из щели */
 }
 /* Широкий мягкий блик в верхней половине. */
 .btn-main::before {
@@ -334,7 +337,7 @@ html.night .tab-glow {
   align-items: center;
   text-align: center;
 }
-.kicker { font-size: 15px; color: var(--muted); min-height: 1.5em; }
+.kicker { font-size: 16px; line-height: 1.5; letter-spacing: -0.01em; color: var(--muted); min-height: 1.5em; }
 .home-stage {
   position: relative;
   width: 100%;
@@ -410,9 +413,9 @@ html.night .slit-beam { opacity: 0.85; mix-blend-mode: screen; }
     inset 0 -12px 16px -8px rgba(0, 0, 0, 0.95),
     inset 7px 0 10px -7px rgba(255, 255, 255, 0.22),
     inset -6px 0 10px -7px rgba(255, 255, 255, 0.12),
-    0 2px 3px rgba(20, 15, 35, 0.35),
-    0 14px 22px -8px rgba(40, 30, 70, 0.42),
-    0 30px 50px -22px rgba(40, 30, 70, 0.35);
+    0 2px 3px rgba(25, 20, 15, 0.35),              /* контактная тень */
+    0 14px 24px -8px rgba(255, 170, 80, 0.55),     /* под кнопкой — тёплый свет, как из щели */
+    0 30px 52px -18px rgba(255, 180, 90, 0.5);
   transition: transform 160ms var(--ease);
 }
 .sab-btn:active { transform: scale(0.97); }
@@ -445,22 +448,34 @@ html.night .sab-btn { --sab-strand: #d6d2cb; --sab-strand-hl: rgba(0, 0, 0, 0.22
 /* Размер кнопки с именем: крупнее, чем на сайте, — это главный элемент экрана. */
 .name-btn {
   height: 76px;
-  padding: 0 38px 0 34px;
+  padding: 0 38px 0 32px;
   gap: 12px;
-  font-size: 32px;
-  font-weight: 400;
-  letter-spacing: -0.04em;
+  font-size: 34px;
+  font-weight: 300;               /* тонкий крупный набор, как заголовки сайта */
+  letter-spacing: -0.05em;
+  line-height: 1;
 }
-.name-btn svg { width: 26px; height: 26px; }
+.name-btn svg { width: 24px; height: 24px; }
+.name-btn span { padding-bottom: 2px; }   /* у тонкого Geist визуальный центр выше — выравниваем с иконкой */
 
-.home-role { margin-top: 0; font-size: 16px; font-weight: 500; color: var(--step-number); letter-spacing: 0; }
+/* Типографика главной: одна гарнитура, иерархия ростом и весом, без цветных выделений.
+   Подзаголовок — тонкий и крупный, фраза — спокойный текст с удобной длиной строки. */
+.home-role {
+  margin-top: 4px;
+  font-size: 22px;
+  font-weight: 300;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
 .home-phrase {
-  margin-top: 8px;
-  max-width: 30ch;
-  font-size: 17px;
-  line-height: 1.45;
+  margin-top: 10px;
+  max-width: 28ch;
+  font-size: 16px;
+  line-height: 1.55;
+  letter-spacing: -0.008em;
   color: var(--muted);
-  text-wrap: balance;
+  text-wrap: pretty;
 }
 
 /* ---------- Карточки: услуги и работы ---------- */
