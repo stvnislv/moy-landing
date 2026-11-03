@@ -19,7 +19,7 @@
 
 ## tg-app/ — Telegram Mini App
 
-Мини-приложение по разделу 11 брифа: HTML, CSS и JS без сборки, точка входа `tg-app/index.html`. Устройство, навигация и где менять данные — в `tg-app/CLAUDE.md`. Тексты и цены лежат отдельно от сайта, в `tg-app/data.js`. Netlify публикует папку по адресу `/tg-app/`.
+Мини-приложение по разделу 11 брифа: HTML, CSS и JS без сборки, точка входа `tg-app/index.html`. Устройство, навигация и где менять данные — в `tg-app/CLAUDE.md`. Тексты и цены лежат отдельно от сайта, в `tg-app/data.js`. Опубликовано отдельным сайтом Netlify: https://stvnislv-app.netlify.app/ (выкладывается вручную через Netlify CLI, не через push; как — в `tg-app/CLAUDE.md`). Основной сайт после push тоже копирует папку в `/tg-app/`.
 
 ## Next.js-версия (`src/`, `package.json`) — устарела
 

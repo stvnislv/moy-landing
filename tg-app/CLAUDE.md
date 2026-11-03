@@ -80,7 +80,16 @@
 
 ## Публикация и проверка
 
-- Netlify копирует папку в `_site/tg-app/` (команда в `../netlify.toml`), этот файл не публикуется. Адрес после публикации: https://stvnislv.netlify.app/tg-app/
+- **Опубликовано отдельным сайтом Netlify `stvnislv-app`: https://stvnislv-app.netlify.app/** (с 3 ноября 2026; Project ID `dce0fe72-082f-4c25-90d3-8169b0808d3a`, аккаунт `stvnislv`). Это не основной сайт и не Git: публикуется только содержимое этой папки, вручную.
+- Как обновить: скопировать папку без этого файла и выложить из неё (не из корня проекта — иначе Netlify подхватит `../netlify.toml` и функции оплаты):
+  ```
+  rm -rf ~/Desktop/stvnislv-tg-app && mkdir ~/Desktop/stvnislv-tg-app && cp -R tg-app/. ~/Desktop/stvnislv-tg-app/ && rm ~/Desktop/stvnislv-tg-app/CLAUDE.md
+  cd ~/Desktop/stvnislv-tg-app && npx netlify-cli@27.10.2 deploy --dir . --prod --no-build --site dce0fe72-082f-4c25-90d3-8169b0808d3a
+  ```
+  Публиковать только по слову владельца «публикуй» — каждая публикация тратит кредиты Netlify. Версия CLI 27.10.2: в 27.16.2 вход (`netlify login`) падает с ошибкой.
+- В аккаунте по умолчанию включена защита «вход для команды Netlify» для новых сайтов. У `stvnislv-app` она снята (`sso_login: false`), иначе Telegram получал бы 401.
+- Netlify сам дописывает в отдаваемый `index.html` комментарий и скрипт `/.netlify/scripts/hud` — так же, как на основном сайте; наш код при этом не меняется.
+- Кроме того, `../netlify.toml` копирует папку в `_site/tg-app/` основного сайта — после следующего push она появится и по адресу https://stvnislv.netlify.app/tg-app/.
 - Бот: @stvnislv_bot. Подключение в @BotFather — Menu Button (кнопка у поля ввода) и `/newapp` (прямая ссылка `t.me/stvnislv_bot/<короткое имя>`). Делает владелец, после публикации.
 - Проверка на телефоне в той же Wi‑Fi сети: в папке `tg-app` запустить `python3 -m http.server 8080 --bind 0.0.0.0` и открыть на телефоне `http://<IP Mac>:8080/` (IP: `ipconfig getifaddr en0`). Это обычный браузер, не Telegram: без имени пользователя и вибрации.
 - Проверка на Mac: открыть `index.html` в Chrome, включить режим устройства (DevTools → Toggle device toolbar) с шириной 320, 375 и 430 px. Тёмную тему — через DevTools → Rendering → `prefers-color-scheme: dark`. Режим без анимаций — флаг `--force-prefers-reduced-motion`.
