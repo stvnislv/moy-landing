@@ -1,12 +1,17 @@
 /* Стили мини-приложения. Визуальный язык сайта (brief.md, раздел 5):
-   тёплый светло-серый фон днём и «тёмный титан» ночью, тонкий шрифт Geist,
+   тёплый светло-серый фон днём и «тёмный титан» ночью, шрифты Onest и Unbounded,
    бесцветное стекло у кнопок и карточек, тёплый янтарный свет из щели.
    Тема: класс night на <html> — его ставит app.js по теме Telegram. */
 
-/* ---------- Шрифт Geist (OFL, с кириллицей), файлы в fonts/ ---------- */
-@font-face { font-family: "Geist Site"; font-weight: 300; font-style: normal; font-display: swap; src: url(fonts/geist-300.woff) format("woff"); }
-@font-face { font-family: "Geist Site"; font-weight: 400; font-style: normal; font-display: swap; src: url(fonts/geist-400.woff) format("woff"); }
-@font-face { font-family: "Geist Site"; font-weight: 500; font-style: normal; font-display: swap; src: url(fonts/geist-500.woff) format("woff"); }
+/* ---------- Шрифты (оба — OFL, с кириллицей, вариативные: любой вес в диапазоне) ----------
+   Onest — весь текст интерфейса: русский гротеск, сделан для экранов, мягкий и хорошо читается.
+   Unbounded — крупные надписи: приветствие, имя, заголовки экранов. Широкий, с характером.
+   Файлы в fonts/, разбиты по алфавитам: браузер грузит только нужные. */
+@font-face { font-family: "Onest"; font-weight: 300 600; font-display: swap; src: url(fonts/onest-cyrillic.woff2) format("woff2"); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: "Onest"; font-weight: 300 600; font-display: swap; src: url(fonts/onest-latin-ext.woff2) format("woff2"); unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: "Onest"; font-weight: 300 600; font-display: swap; src: url(fonts/onest-latin.woff2) format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Unbounded"; font-weight: 200 700; font-display: swap; src: url(fonts/unbounded-cyrillic.woff2) format("woff2"); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: "Unbounded"; font-weight: 200 700; font-display: swap; src: url(fonts/unbounded-latin.woff2) format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
 
 /* ---------- Цвета и размеры. Ночные значения — ниже, в html.night ---------- */
 :root {
@@ -23,6 +28,7 @@
   --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px));
   --safe-top: max(env(safe-area-inset-top, 0px), var(--tg-safe-area-inset-top, 0px));
   --tabbar-h: 64px;
+  --display: "Unbounded", "Onest", ui-sans-serif, system-ui, sans-serif;   /* крупные надписи */
 }
 html.night {
   --bg: #1c1b1a;
@@ -46,7 +52,7 @@ html, body {
 }
 html {
   color: var(--ink);
-  font-family: "Geist Site", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-family: "Onest", ui-sans-serif, system-ui, -apple-system, sans-serif;
   font-size: 16px;
   line-height: 1.5;
   letter-spacing: -0.012em;
@@ -112,10 +118,11 @@ html.night .backdrop { opacity: 0; }
 .screen[hidden] { display: none; }
 
 .screen-title {
-  font-size: 40px;
+  font-family: var(--display);
+  font-size: 32px;
   font-weight: 300;
-  line-height: 1;
-  letter-spacing: -0.045em;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
   margin: 8px 4px 24px;
 }
 
@@ -344,7 +351,7 @@ html.night .tab-glow {
   position: relative;
   align-self: stretch;
   margin: 0 -16px;                         /* во всю ширину экрана, без полей */
-  height: clamp(300px, 44vh, 370px);
+  height: clamp(320px, 46vh, 400px);
 }
 .scene-bg {
   position: absolute;
@@ -455,30 +462,59 @@ html.night .slit-beam { opacity: 0.95; }
 /* Пока «Главная» скрыта, бесконечные анимации света стоят — экономия батареи. */
 .screen[hidden] :is(.slit-light, .slit-edge, .slit-beam) { animation-play-state: paused; }
 
-/* Приветствие — над щелью, кнопка с именем — в пятне света под ней. */
-.kicker {
+/* ---------- Приветствие: свет даёт буквам вес ----------
+   Стоит прямо под щелью. Каждый раз, когда открывается «Главная» (класс play на .home), буквы проступают из тени от центра к краям,
+   вслед за светом: тонкие и размытые — вспыхивают тёплым — набирают вес.
+   Unbounded вариативный, поэтому вес меняется плавно. Задержку каждой букве (--d)
+   и остаточный тёплый отсвет (--g, ярче у центра луча) считает app.js. */
+.greeting {
   position: absolute;
   left: 16px;
   right: 16px;
-  top: calc(var(--slit-y, 26%) - 44px);
-  font-size: 16px;
-  line-height: 1.5;
-  letter-spacing: -0.01em;
-  color: var(--muted);
-  min-height: 1.5em;
+  top: calc(var(--slit-y, 26%) + 20px);
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(30px, 10.6vw, 44px);
+  font-weight: 340;
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+  color: var(--ink);
+  text-wrap: balance;
 }
+.greeting .word { display: inline-block; white-space: nowrap; }
+.greeting .ch {
+  display: inline-block;
+  /* после вспышки у букв под лучом остаётся тёплый отсвет */
+  text-shadow: 0 0 18px rgba(255, 170, 80, calc(var(--g, 0) * 0.55));
+}
+html.night .greeting .ch { text-shadow: 0 0 20px rgba(255, 190, 110, calc(var(--g, 0) * 0.75)); }
+@media (prefers-reduced-motion: no-preference) {
+  .home.play .greeting .ch { animation: ignite 1.5s cubic-bezier(0.22, 1, 0.36, 1) var(--d, 0s) backwards; }
+}
+@keyframes ignite {
+  0%   { opacity: 0; font-weight: 200; filter: blur(9px); translate: 0 0.12em; color: #ffb45a; }
+  40%  { opacity: 1; font-weight: 520; filter: blur(0); translate: 0 0; color: #f59a3c;
+         text-shadow: 0 0 22px rgba(255, 170, 80, 0.95); }
+  100% { font-weight: 340; }
+}
+
+/* Кнопка с именем — внизу сцены, в пятне света. */
 .home-title {
   position: absolute;
   margin: 0;
   font: inherit;
   left: 0;
   right: 0;
-  /* середина между щелью и низом сцены; 38px — половина высоты кнопки.
-     Без transform: иначе рассеянный свет вокруг кнопки не смешивался бы с картинкой под ней. */
-  top: calc(var(--slit-y, 26%) + (100% - var(--slit-y, 26%)) * 0.5 - 38px);
+  /* Без transform: иначе рассеянный свет вокруг кнопки не смешивался бы с картинкой под ней. */
+  bottom: 26px;
   display: flex;
   justify-content: center;
 }
+/* Кнопка появляется, когда свет дошёл до краёв приветствия. */
+@media (prefers-reduced-motion: no-preference) {
+  .home.play .name-btn { animation: settle 1s cubic-bezier(0.22, 1, 0.36, 1) 0.95s backwards; }
+}
+@keyframes settle { from { opacity: 0; transform: translateY(14px) scale(0.96); } }
 
 /* Кнопка с именем — чёрный лак с липкими нитями, как «Написать в Telegram» на сайте.
    Нити рисует sticky-arm.js; здесь — сама кнопка (CSS скопирован с сайта) и её размер. */
@@ -544,12 +580,13 @@ html.night .slit-beam { opacity: 0.95; }
 html.night .sab-btn { --sab-strand: #d6d2cb; --sab-strand-hl: rgba(0, 0, 0, 0.22); }
 /* Размер кнопки с именем: крупнее, чем на сайте, — это главный элемент экрана. */
 .name-btn {
-  height: 76px;
-  padding: 0 38px 0 32px;
+  height: 68px;
+  padding: 0 32px 0 28px;
   gap: 12px;
-  font-size: 34px;
-  font-weight: 300;               /* тонкий крупный набор, как заголовки сайта */
-  letter-spacing: -0.05em;
+  font-family: var(--display);
+  font-size: 25px;
+  font-weight: 300;
+  letter-spacing: -0.02em;
   line-height: 1;
 }
 .name-btn svg { width: 24px; height: 24px; }
@@ -573,11 +610,10 @@ html.night .sab-btn { --sab-strand: #d6d2cb; --sab-strand-hl: rgba(0, 0, 0, 0.22
 .home-title::before {
   content: "";
   position: absolute;
-  left: 50%;
+  left: 0;                         /* по ширине сцены — за край экрана не выходит */
+  right: 0;
   top: -110px;
-  width: 360px;
   height: 260px;
-  translate: -50% 0;
   background: radial-gradient(50% 50% at 50% 46%, rgba(255, 200, 130, 0.55), rgba(255, 176, 96, 0.22) 45%, rgba(255, 170, 90, 0) 75%);
   filter: blur(26px);
   mix-blend-mode: screen;
@@ -585,27 +621,31 @@ html.night .sab-btn { --sab-strand: #d6d2cb; --sab-strand-hl: rgba(0, 0, 0, 0.22
   pointer-events: none;
 }
 html.night .home-title::before { opacity: 0.9; }
-.name-btn span { padding-bottom: 2px; }   /* у тонкого Geist визуальный центр выше — выравниваем с иконкой */
+.name-btn span { padding-bottom: 1px; }   /* оптически выравниваем текст с иконкой */
 
-/* Типографика главной: одна гарнитура, иерархия ростом и весом, без цветных выделений.
-   Подзаголовок — тонкий и крупный, фраза — спокойный текст с удобной длиной строки. */
-.home-role {
-  margin-top: -36px;               /* низ сцены — растворяющаяся тень, текст заходит на неё */
+/* Текст под сценой: что я делаю — и как со мной связаться. Onest, без цветных выделений. */
+.home-lead {
   position: relative;
-  font-size: 22px;
-  font-weight: 300;
-  line-height: 1.2;
-  letter-spacing: -0.03em;
+  margin-top: 4px;
+  max-width: 19em;
+  font-size: 21px;
+  font-weight: 450;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
   color: var(--ink);
+  text-wrap: balance;
 }
-.home-phrase {
+.home-text {
   margin-top: 10px;
-  max-width: 28ch;
+  max-width: 27em;
   font-size: 16px;
   line-height: 1.55;
-  letter-spacing: -0.008em;
   color: var(--muted);
   text-wrap: pretty;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .home.play :is(.home-lead, .home-text) { animation: settle 1s cubic-bezier(0.22, 1, 0.36, 1) 1.15s backwards; }
+  .home.play .home-text { animation-delay: 1.25s; }
 }
 
 /* ---------- Карточки: услуги и работы ---------- */
@@ -764,7 +804,7 @@ html.night .mini-phone::after { background-color: rgba(255, 255, 255, 0.12); }
 
 /* ---------- Связаться ---------- */
 .contact-panel { border-radius: 26px; padding: 24px 20px 20px; }
-.contact-heading { font-size: 28px; font-weight: 300; line-height: 1.1; letter-spacing: -0.035em; }
+.contact-heading { font-family: var(--display); font-size: 23px; font-weight: 300; line-height: 1.2; letter-spacing: -0.03em; }
 .contact-text { margin: 10px 0 20px; font-size: 16px; line-height: 1.55; color: var(--muted); }
 
 /* Список контактов в духе настроек Telegram: строка — иконка, подпись, стрелка. */
@@ -807,7 +847,7 @@ html.night .row-icon { background: linear-gradient(180deg, #4a4744, #2a2927); }
 .row-chevron { width: 16px; height: 16px; color: var(--muted); fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
 /* Шаги работы: номер тёплого цвета, тонкая линия сверху. */
-.block-title { margin: 36px 4px 4px; font-size: 28px; font-weight: 300; letter-spacing: -0.035em; line-height: 1.1; }
+.block-title { margin: 36px 4px 4px; font-family: var(--display); font-size: 23px; font-weight: 300; letter-spacing: -0.03em; line-height: 1.2; }
 .steps { margin: 0 4px; }
 .step { padding: 16px 0; border-bottom: 1px solid var(--hair); display: grid; grid-template-columns: 36px 1fr; gap: 0 8px; }
 .step:last-child { border-bottom: 0; }
@@ -853,7 +893,17 @@ html.night .toast { color: #19191b; background: rgba(237, 235, 231, 0.92); }
   .tab span { letter-spacing: -0.045em; }
   .btn-main { padding: 0 16px; font-size: 16px; gap: 8px; }
   .contact-panel { padding: 22px 16px 16px; }
-  .screen-title { font-size: 36px; }
+  .screen-title { font-size: 29px; }
+}
+
+/* ---------- Невысокие экраны (iPhone SE и т. п.): сцена и приветствие компактнее, всё помещается без прокрутки ---------- */
+@media (max-height: 640px) {
+  .scene { height: 290px; }
+  .greeting { top: calc(var(--slit-y, 26%) + 14px); font-size: clamp(28px, 9.4vw, 36px); }
+  .home-title { bottom: 16px; }
+  .name-btn { height: 60px; font-size: 22px; padding: 0 26px 0 22px; }
+  .home-lead { font-size: 18px; }
+  .home-text { font-size: 15px; }
 }
 
 /* ---------- Переключатель дня и ночи: стеклянная пилюля с ползунком, как в шапке сайта ---------- */

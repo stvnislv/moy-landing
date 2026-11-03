@@ -40,12 +40,12 @@
   </button>
 
   <main class="screens">
-    <!-- 1. Главная: имя-кнопка с липкими нитями (открывает чат в Telegram) и фраза о себе. -->
+    <!-- 1. Главная: приветствие по времени суток, имя-кнопка с липкими нитями (открывает чат) и пара фраз о том, что я делаю. -->
     <section class="screen screen-home" id="home" data-screen="home" aria-labelledby="home-title">
       <div class="home">
         <!-- Сцена — первый экран сайта в миниатюре: картинка hero-bg.jpg (чёрная щель и тень под ней)
              и слои тёплого света из щели. Положение щели считает app.js (SLIT), свет всегда точно под ней.
-             Кнопка с именем стоит в этом свете. -->
+             Приветствие и кнопка с именем стоят в этом свете. -->
         <div class="scene" data-scene>
           <div class="scene-bg" aria-hidden="true">
             <div class="scene-img"></div>
@@ -54,13 +54,13 @@
             <div class="slit-light"></div>
             <div class="slit-edge"></div>
           </div>
-          <p class="kicker" data-greeting></p>
+          <p class="greeting" data-greeting></p>
           <h1 class="home-title" id="home-title">
-            <button type="button" class="sab-btn name-btn" data-name-button data-sticky-arm></button>
+            <button type="button" class="sab-btn name-btn" data-name-button></button>
           </h1>
         </div>
-        <p class="home-role" data-role></p>
-        <p class="home-phrase" data-phrase></p>
+        <p class="home-lead" data-lead></p>
+        <p class="home-text" data-text></p>
       </div>
     </section>
 
@@ -118,7 +118,7 @@
 </div>
 
 <script src="data.js"></script>
-<script src="app.js"></script>
 <script src="sticky-arm.js"></script>
+<script src="app.js"></script>
 </body>
 </html>

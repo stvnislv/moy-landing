@@ -128,13 +128,71 @@
   if ("ResizeObserver" in window) new ResizeObserver(placeSlit).observe(scene);
   else window.addEventListener("resize", placeSlit);
 
-  // Главная: приветствие по имени из Telegram, кнопка с именем мастера (открывает чат), фраза.
+  // Главная: приветствие по времени суток, кнопка с именем мастера (открывает чат), две фразы.
   const user = inTelegram && tg.initDataUnsafe && tg.initDataUnsafe.user;
-  $("[data-greeting]").textContent = user && user.first_name ? `Здравствуйте, ${user.first_name}!` : "Здравствуйте!";
-  $("[data-name-button]").innerHTML = `${icons.telegram}<span>${esc(data.name)}</span>`;
-  $("[data-name-button]").setAttribute("aria-label", `${data.name} — написать в Telegram`);
-  $("[data-role]").textContent = data.home.role;
-  $("[data-phrase]").innerHTML = nbsp(data.home.phrase);
+  const homeBox = $(".home");
+  const greetingEl = $("[data-greeting]");
+
+  // Приветствие по часам телефона (интервалы — в data.greetings), с именем из Telegram, если оно есть.
+  function greetingText() {
+    const hour = new Date().getHours();
+    const g = data.greetings.find((x) => (x.from < x.to ? hour >= x.from && hour < x.to : hour >= x.from || hour < x.to));
+    const name = user && user.first_name ? `, ${user.first_name}` : "";
+    return `${g ? g.text : data.greetings[0].text}${name}!`;
+  }
+  // Каждая буква — отдельный элемент: так ей можно дать свою задержку вспышки.
+  // Слова не разрываются; программам чтения с экрана — целая фраза в aria-label.
+  function renderGreeting() {
+    const text = greetingText();
+    greetingEl.dataset.shown = text;
+    greetingEl.setAttribute("aria-label", text);
+    greetingEl.innerHTML = text.split(" ")
+      .map((word) => `<span class="word" aria-hidden="true">${[...word].map((ch) => `<span class="ch">${esc(ch)}</span>`).join("")}</span>`)
+      .join(" ");
+  }
+  // Свет идёт из центра щели: буквы ближе к центру загораются раньше и сохраняют тёплый отсвет (--g),
+  // нижняя строка — чуть позже верхней.
+  function aimLight() {
+    const box = greetingEl.getBoundingClientRect();
+    if (!box.width) return false;                   // «Главная» скрыта
+    const center = box.left + box.width / 2;
+    const half = box.width / 2;
+    greetingEl.querySelectorAll(".ch").forEach((ch) => {
+      const r = ch.getBoundingClientRect();
+      const dist = Math.min(1, Math.abs(r.left + r.width / 2 - center) / half);
+      const line = Math.round((r.top - box.top) / r.height);
+      ch.style.setProperty("--d", `${(0.45 + dist * 0.6 + line * 0.14).toFixed(3)}s`);
+      ch.style.setProperty("--g", ((1 - dist) ** 2).toFixed(3));
+    });
+    return true;
+  }
+  // Проиграть появление заново: свет зажигает приветствие, потом появляются кнопка и текст.
+  function playHome() {
+    if (!aimLight()) return;
+    homeBox.classList.remove("play");
+    void homeBox.offsetWidth;                       // перезапуск CSS-анимаций
+    homeBox.classList.add("play");
+  }
+  renderGreeting();
+  // Наступило другое время суток — новое приветствие.
+  setInterval(() => {
+    if (greetingText() === greetingEl.dataset.shown) return;
+    renderGreeting();
+    playHome();
+  }, 30000);
+  // Когда шрифт загрузится, буквы встанут на свои места — пересчитываем отсвет.
+  if (document.fonts) document.fonts.ready.then(aimLight);
+
+  const nameButton = $("[data-name-button]");
+  nameButton.innerHTML = `${icons.telegram}<span>${esc(data.name)}</span>`;
+  nameButton.setAttribute("aria-label", `${data.name} — написать в Telegram`);
+  // Липкие нити (sticky-arm.js) — короче, чем на сайте: на маленьком экране не тянутся через полстраницы.
+  // near — с какого расстояния нити начинают тянуться (доля ширины кнопки), *Break — на какой длине рвутся, px.
+  if (window.StickyArmButton) {
+    window.StickyArmButton.mount(nameButton, { near: 0.4, coreBreak: [90, 135], sideBreak: [65, 105] });
+  }
+  $("[data-lead]").innerHTML = nbsp(data.home.lead);
+  $("[data-text]").innerHTML = nbsp(data.home.text);
 
   // Услуги: карточка — название, срок, описание, цена «от» и кнопка «Обсудить».
   $("[data-services]").innerHTML = data.services.map((s, i) => `
@@ -246,6 +304,7 @@
     to.scrollTop = 0;
     current = name;
     updateMenu();
+    if (name === "home") playHome();             // приветствие загорается заново
 
     if (calm.matches || !to.animate) { from.hidden = true; return; }
     // Старый экран уходит в сторону и гаснет (200 мс), новый въезжает с другой стороны (260 мс).
@@ -298,4 +357,5 @@
     current = start;
   }
   updateMenu();
+  if (current === "home") playHome();
 })();
