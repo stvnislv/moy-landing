@@ -18,11 +18,19 @@
   const supports = (version) => inTelegram && tg.isVersionAtLeast(version);
 
   // Тема как на сайте: день — тёплый светло-серый, ночь — тёмный титан.
-  // Какую включить, решает Telegram (его светлая или тёмная тема).
+  // Если человек выбрал тему переключателем, выбор запоминается (localStorage, ключ theme)
+  // и важнее всего. Если не выбирал — тема следует за Telegram (вне Telegram — за системой).
   const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+  const themeToggle = $(".theme-toggle");
+  function savedTheme() {
+    try { return localStorage.getItem("theme"); } catch { return null; }   // хранилище может быть недоступно
+  }
   function applyTheme() {
-    const night = inTelegram ? tg.colorScheme === "dark" : darkQuery.matches;
+    const saved = savedTheme();
+    const night = saved ? saved === "night" : inTelegram ? tg.colorScheme === "dark" : darkQuery.matches;
     document.documentElement.classList.toggle("night", night);
+    themeToggle.setAttribute("aria-checked", String(night));
+    themeToggle.setAttribute("aria-label", night ? "Дневной режим" : "Ночной режим");
     const bg = night ? "#1c1b1a" : "#f3f3f1";
     document.querySelector('meta[name="theme-color"]').content = bg;
     // Шапка и низ окна Telegram — в цвет фона, чтобы не было рамки вокруг приложения.
@@ -32,6 +40,12 @@
   applyTheme();
   if (inTelegram) tg.onEvent("themeChanged", applyTheme);
   else darkQuery.addEventListener("change", applyTheme);
+  themeToggle.addEventListener("click", () => {
+    const night = !document.documentElement.classList.contains("night");
+    try { localStorage.setItem("theme", night ? "night" : "day"); } catch { /* не запомнится — не страшно */ }
+    haptic.select();
+    applyTheme();
+  });
 
   if (inTelegram) {
     tg.ready();
@@ -95,10 +109,11 @@
     chevron: '<svg class="row-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>',
   };
 
-  // Главная: приветствие по имени из Telegram, имя мастера, фраза.
+  // Главная: приветствие по имени из Telegram, кнопка с именем мастера (открывает чат), фраза.
   const user = inTelegram && tg.initDataUnsafe && tg.initDataUnsafe.user;
   $("[data-greeting]").textContent = user && user.first_name ? `Здравствуйте, ${user.first_name}!` : "Здравствуйте!";
-  $("[data-name]").textContent = data.name;
+  $("[data-name-button]").innerHTML = `${icons.telegram}<span>${esc(data.name)}</span>`;
+  $("[data-name-button]").setAttribute("aria-label", `${data.name} — написать в Telegram`);
   $("[data-role]").textContent = data.home.role;
   $("[data-phrase]").innerHTML = nbsp(data.home.phrase);
 
@@ -167,12 +182,12 @@
   document.addEventListener("click", (event) => {
     const target = event.target.closest("button");
     if (!target) return;
-    if (target.dataset.tab) return;                 // меню обрабатывается ниже
+    if (target.dataset.tab || target === themeToggle) return;   // меню и переключатель темы — свои обработчики
     haptic.tap();
     if (target.dataset.discuss) openTelegram(data.services[target.dataset.discuss].message);
     else if (target.hasAttribute("data-discuss-project")) openTelegram("Здравствуйте! Хочу обсудить проект.");
     else if (target.dataset.openWork) openLink(data.portfolio[target.dataset.openWork].url);
-    else if (target.hasAttribute("data-telegram-button")) openTelegram();
+    else if (target.hasAttribute("data-telegram-button") || target.hasAttribute("data-name-button")) openTelegram();
     else if (target.dataset.contact === "telegram") openTelegram();
     else if (target.dataset.contact === "instagram") openLink(`https://instagram.com/${data.instagram}`);
     else if (target.dataset.contact === "email") copyEmail();
@@ -212,7 +227,6 @@
     to.scrollTop = 0;
     current = name;
     updateMenu();
-    if (name === "home" && window.portrait) window.portrait.refresh();   // холст портрета получил размер
 
     if (calm.matches || !to.animate) { from.hidden = true; return; }
     // Старый экран уходит в сторону и гаснет (200 мс), новый въезжает с другой стороны (260 мс).
