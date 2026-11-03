@@ -1,0 +1,652 @@
+/* Стили мини-приложения. Визуальный язык сайта (brief.md, раздел 5):
+   тёплый светло-серый фон днём и «тёмный титан» ночью, тонкий шрифт Geist,
+   бесцветное стекло у кнопок и карточек, тёплый янтарный свет из щели.
+   Тема: класс night на <html> — его ставит app.js по теме Telegram. */
+
+/* ---------- Шрифт Geist (OFL, с кириллицей), файлы в fonts/ ---------- */
+@font-face { font-family: "Geist Site"; font-weight: 300; font-style: normal; font-display: swap; src: url(fonts/geist-300.woff) format("woff"); }
+@font-face { font-family: "Geist Site"; font-weight: 400; font-style: normal; font-display: swap; src: url(fonts/geist-400.woff) format("woff"); }
+@font-face { font-family: "Geist Site"; font-weight: 500; font-style: normal; font-display: swap; src: url(fonts/geist-500.woff) format("woff"); }
+
+/* ---------- Цвета и размеры. Ночные значения — ниже, в html.night ---------- */
+:root {
+  --bg: #f3f3f1;
+  --ink: #19191b;
+  --muted: #5b5a57;
+  --hair: rgba(25, 25, 27, 0.12);
+  --step-number: #b9773a;
+  --warm: #ffb45a;
+  --warm-soft: #ffd9a0;
+  --radius: 22px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Отступ снизу под «полоску» iPhone: берём больший из системного и того, что сообщает Telegram. */
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px));
+  --safe-top: max(env(safe-area-inset-top, 0px), var(--tg-safe-area-inset-top, 0px));
+  --tabbar-h: 64px;
+}
+html.night {
+  --bg: #1c1b1a;
+  --ink: #edebe7;
+  --muted: #a9a59e;
+  --hair: rgba(237, 235, 231, 0.13);
+  --step-number: #e9b276;
+}
+
+/* ---------- Основа ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+html, body, h1, h2, h3, p, ul, ol, figure { margin: 0; padding: 0; }
+ul, ol { list-style: none; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+a { color: inherit; text-decoration: none; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;              /* прокручиваются только экраны, а не вся страница — как в приложении */
+  background: var(--bg);
+}
+html {
+  color: var(--ink);
+  font-family: "Geist Site", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  letter-spacing: -0.012em;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  transition: background-color 0.6s ease, color 0.6s ease;
+}
+body {
+  -webkit-tap-highlight-color: transparent;   /* вместо синей вспышки — свои отклики на касание */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+::selection { background: rgba(255, 180, 100, 0.35); }
+:focus-visible { outline: 2px solid #e9a35a; outline-offset: 3px; }
+
+/* ---------- Каркас: экраны и нижнее меню ---------- */
+.app {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* Высоту видимой области сообщает Telegram; вне Telegram — весь экран. */
+  height: var(--tg-viewport-stable-height, 100%);
+  max-width: 430px;              /* только телефон: на широком окне — колонка по центру */
+  margin: 0 auto;
+  overflow: hidden;
+}
+/* Ночью — тёмный титан: графит с тёплым отливом и мягким косым бликом. */
+html.night .app {
+  background:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.035), transparent 35%, rgba(255, 255, 255, 0.02) 60%, transparent 80%),
+    radial-gradient(120% 90% at 50% 0%, #34322f 0%, #232220 45%, #151514 100%);
+}
+/* Днём — светлый туман из пятен: на ровном фоне стекло не видно. */
+.backdrop {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 40% at 85% 8%, rgba(255, 255, 255, 0.95), transparent 70%),
+    radial-gradient(55% 35% at 5% 45%, rgba(214, 213, 208, 0.7), transparent 70%),
+    radial-gradient(60% 40% at 95% 75%, rgba(222, 220, 214, 0.65), transparent 70%),
+    radial-gradient(70% 40% at 30% 100%, rgba(255, 255, 255, 0.9), transparent 70%);
+  transition: opacity 0.6s ease;
+}
+html.night .backdrop { opacity: 0; }
+
+.screens { position: absolute; inset: 0; }
+.screen {
+  position: absolute;
+  inset: 0;
+  overflow-x: hidden;            /* никакой горизонтальной прокрутки */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: calc(24px + var(--safe-top)) 16px calc(var(--tabbar-h) + 32px + var(--safe-bottom));
+  will-change: transform, opacity;
+}
+.screen[hidden] { display: none; }
+
+.screen-title {
+  font-size: 40px;
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.045em;
+  margin: 8px 4px 24px;
+}
+
+/* ---------- Стекло (Liquid Glass): карточки, панели, список ---------- */
+.glass {
+  background: rgba(255, 255, 255, 0.55);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 8px 32px rgba(29, 30, 32, 0.08);
+}
+html.night .glass {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass { background: rgba(255, 255, 255, 0.92); }
+  html.night .glass { background: rgba(44, 42, 40, 0.95); }
+}
+
+/* ---------- Отклик на касание ---------- */
+.tap {
+  position: relative;
+  isolation: isolate;
+  transition: transform 160ms var(--ease), background-color 160ms ease, opacity 160ms ease;
+}
+.tap:active { transform: scale(0.97); }
+/* За нажатой кнопкой загорается тот же тёплый свет, что из щели на сайте. */
+:is(.btn-main, .btn-ghost)::after {
+  content: "";
+  position: absolute;
+  inset: -10px;
+  z-index: -2;
+  border-radius: inherit;
+  background: radial-gradient(60% 70% at 50% 60%, rgba(255, 196, 120, 0.95), rgba(255, 158, 74, 0.5) 45%, transparent 75%);
+  filter: blur(14px);
+  opacity: 0;
+  transform: scale(0.85);
+  pointer-events: none;
+  transition: opacity 0.4s var(--ease), transform 0.4s var(--ease);
+}
+:is(.btn-main, .btn-ghost):active::after { opacity: 0.85; transform: scale(1.05); transition-duration: 0.12s; }
+
+/* ---------- Кнопки ---------- */
+/* Главная кнопка — чёрный лак, как «Написать в Telegram» на сайте. */
+.btn-main {
+  display: flex;
+  width: 100%;
+  min-height: 56px;
+  padding: 0 24px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 999px;
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  color: #f3f3f3;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.7);
+  background:
+    radial-gradient(34px 24px at 14% 46%, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 72%),
+    linear-gradient(180deg, #2b2b2e 0%, #0d0d0e 40%, #050505 72%, #161618 100%);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.38),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -12px 16px -8px rgba(0, 0, 0, 0.95),
+    0 2px 3px rgba(20, 15, 35, 0.35),
+    0 14px 22px -8px rgba(40, 30, 70, 0.42);
+}
+/* Широкий мягкий блик в верхней половине. */
+.btn-main::before {
+  content: "";
+  position: absolute;
+  left: 6%;
+  right: 9%;
+  top: 4px;
+  height: 42%;
+  z-index: -1;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+.btn-main svg { width: 20px; height: 20px; flex-shrink: 0; }
+
+/* Второстепенная кнопка — прозрачное объёмное стекло без цвета. */
+.btn-ghost {
+  display: inline-flex;
+  min-height: 44px;
+  padding: 0 20px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--ink);
+  background:
+    radial-gradient(120% 70% at 30% 0%, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0) 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.08));
+  -webkit-backdrop-filter: blur(14px) saturate(180%);
+  backdrop-filter: blur(14px) saturate(180%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+    inset 0 1px 1px rgba(255, 255, 255, 0.95),
+    inset 0 -10px 18px -12px rgba(29, 30, 32, 0.16),
+    0 10px 24px -14px rgba(29, 30, 32, 0.35);
+}
+html.night .btn-ghost {
+  background:
+    radial-gradient(120% 70% at 30% 0%, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    inset 0 1px 1px rgba(255, 255, 255, 0.35),
+    inset 0 -10px 18px -12px rgba(0, 0, 0, 0.4),
+    0 12px 30px -16px rgba(0, 0, 0, 0.7);
+}
+.btn-ghost svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+/* ---------- Нижнее меню: стеклянная капсула ---------- */
+.tabbar {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: calc(8px + var(--safe-bottom));
+  z-index: 10;
+  height: var(--tabbar-h);
+  padding: 4px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-radius: 999px;
+  background:
+    radial-gradient(120% 70% at 30% 0%, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0) 60%),
+    rgba(255, 255, 255, 0.5);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+    inset 0 1px 1px rgba(255, 255, 255, 0.95),
+    inset 0 -10px 18px -12px rgba(29, 30, 32, 0.16),
+    0 12px 30px -12px rgba(29, 30, 32, 0.35);
+}
+html.night .tabbar {
+  background:
+    radial-gradient(120% 70% at 30% 0%, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 60%),
+    rgba(40, 38, 36, 0.6);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    inset 0 1px 1px rgba(255, 255, 255, 0.28),
+    0 14px 34px -12px rgba(0, 0, 0, 0.8);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .tabbar { background-color: rgba(255, 255, 255, 0.92); }
+  html.night .tabbar { background-color: rgba(44, 42, 40, 0.96); }
+}
+.tab {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-radius: 999px;
+  color: var(--muted);
+  transition: color 250ms ease, transform 160ms var(--ease);
+}
+.tab svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.tab span {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+}
+.tab[aria-current="page"] { color: var(--ink); }
+/* Подложка под активной кнопкой: светлое стекло, снизу — тёплое свечение. */
+.tab-glow {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc((100% - 8px) / 4);
+  border-radius: 999px;
+  background:
+    radial-gradient(70% 40% at 50% 115%, rgba(255, 180, 90, 0.55), transparent 70%),
+    radial-gradient(120% 70% at 30% 0%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.5) 60%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.8), 0 4px 12px -6px rgba(29, 30, 32, 0.3);
+  transform: translateX(calc(var(--tab-index, 0) * 100%));
+  transition: transform 300ms var(--ease);
+}
+html.night .tab-glow {
+  background:
+    radial-gradient(70% 40% at 50% 115%, rgba(255, 180, 90, 0.4), transparent 70%),
+    rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16), inset 0 1px 1px rgba(255, 255, 255, 0.25);
+}
+
+/* ---------- Главная ---------- */
+.screen-home { display: flex; flex-direction: column; }
+.screen-home[hidden] { display: none; }
+.home {
+  margin: auto 0;                /* по центру экрана, если всё помещается */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.kicker { font-size: 15px; color: var(--muted); min-height: 1.5em; }
+.home-stage {
+  position: relative;
+  width: 100%;
+  margin-top: 8px;
+  padding-top: 26px;
+  display: flex;
+  justify-content: center;
+}
+/* Щель: тонкая чёрная линия, из-под неё вниз льётся тёплый треугольник света. */
+.slit { position: absolute; inset: 0; pointer-events: none; }
+.slit-line {
+  position: absolute;
+  left: 50%;
+  top: 10px;
+  width: 44%;
+  height: 3px;
+  translate: -50% 0;
+  border-radius: 3px;
+  background: #0a0a0b;
+  box-shadow: 0 1px 0 rgba(255, 220, 170, 0.9), 0 3px 10px rgba(255, 180, 90, 0.7);
+}
+html.night .slit-line { background: #050505; box-shadow: 0 1px 0 rgba(255, 232, 194, 0.95), 0 3px 14px rgba(255, 190, 110, 0.9); }
+.slit-beam {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  width: 100%;
+  height: 92%;
+  translate: -50% 0;
+  clip-path: polygon(30.4% 0, 69.6% 0, 100% 100%, 0 100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 196, 120, 0.35) 30%, rgba(255, 180, 90, 0.6) 50%, rgba(255, 196, 120, 0.35) 70%, transparent);
+  -webkit-mask-image: linear-gradient(#000, rgba(0, 0, 0, 0.35) 55%, transparent);
+  mask-image: linear-gradient(#000, rgba(0, 0, 0, 0.35) 55%, transparent);
+  filter: blur(10px);
+  opacity: 0.6;
+}
+html.night .slit-beam { opacity: 0.85; mix-blend-mode: screen; }
+@media (prefers-reduced-motion: no-preference) {
+  /* Свет медленно «дышит». */
+  .slit-beam { animation: breathe 6s ease-in-out infinite; }
+  @keyframes breathe { 50% { opacity: 0.4; } }
+  html.night .slit-beam { animation-name: breathe-night; }
+  @keyframes breathe-night { 50% { opacity: 0.6; } }
+}
+/* Портрет из нитей: два холста, рисует portrait.js. */
+.portrait {
+  position: relative;
+  width: min(74vw, 290px);
+  aspect-ratio: 300 / 305;
+}
+.portrait canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.home-name {
+  margin-top: 12px;
+  font-size: 48px;
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.045em;
+}
+.home-role { margin-top: 10px; font-size: 16px; font-weight: 500; color: var(--step-number); letter-spacing: 0; }
+.home-phrase {
+  margin-top: 8px;
+  max-width: 30ch;
+  font-size: 17px;
+  line-height: 1.45;
+  color: var(--muted);
+  text-wrap: balance;
+}
+
+/* ---------- Карточки: услуги и работы ---------- */
+.cards { display: grid; gap: 12px; }
+.card {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius);
+  padding: 20px;
+}
+/* Тёплая нить света пробегает по верхней кромке карточки при касании. */
+.card::before {
+  content: "";
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255, 170, 92, 0.9), rgba(255, 210, 150, 0.4) 40%, transparent);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  transition: transform 0.7s var(--ease);
+}
+.card:active::before, .card.is-pressed::before { transform: scaleX(1); }
+.card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.card-title { font-size: 20px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.3; }
+.card-desc { margin-top: 8px; font-size: 15px; line-height: 1.55; color: var(--muted); }
+.chip {
+  flex-shrink: 0;
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--muted);
+  border: 1px solid var(--hair);
+  white-space: nowrap;
+}
+.card-foot {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--hair);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.price {
+  font-size: 28px;
+  font-weight: 300;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.note { margin: 16px 4px 0; font-size: 14px; color: var(--muted); }
+
+/* Работы: миниатюра сверху, текст снизу. */
+.work { padding: 0; }
+.work-body { padding: 18px 20px 20px; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.work .btn-ghost { margin-top: 16px; }
+
+/* Миниатюра сайта: щель и тёплый треугольник света на тёмном титане. */
+.preview { position: relative; height: 168px; overflow: hidden; }
+.preview-site { background: radial-gradient(120% 90% at 50% 0%, #34322f, #1d1c1b 60%, #151514); }
+.preview-site::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 28%;
+  width: 26%;
+  height: 2px;
+  translate: -50% 0;
+  border-radius: 2px;
+  background: #ffe8c2;
+  box-shadow: 0 0 10px rgba(255, 200, 130, 0.9);
+}
+.preview-site::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 28%;
+  width: 70%;
+  height: 72%;
+  translate: -50% 0;
+  clip-path: polygon(31% 0, 69% 0, 100% 100%, 0 100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 196, 120, 0.35) 35%, rgba(255, 180, 100, 0.6) 50%, rgba(255, 196, 120, 0.35) 65%, transparent);
+  -webkit-mask-image: linear-gradient(#000, transparent);
+  mask-image: linear-gradient(#000, transparent);
+  filter: blur(8px);
+}
+/* Миниатюра приложения: маленький телефон со щелью и нижним меню. */
+.preview-app {
+  display: grid;
+  place-items: end center;
+  background:
+    radial-gradient(60% 80% at 50% 100%, rgba(255, 196, 120, 0.35), transparent 70%),
+    linear-gradient(180deg, #ebeae6, #f6f5f2);
+}
+html.night .preview-app {
+  background:
+    radial-gradient(60% 80% at 50% 100%, rgba(255, 180, 100, 0.22), transparent 70%),
+    linear-gradient(180deg, #2a2927, #1a1918);
+}
+.mini-phone {
+  position: relative;
+  width: 96px;
+  height: 148px;
+  margin-bottom: -10px;
+  border-radius: 20px 20px 0 0;
+  background: #f3f3f1;
+  box-shadow: 0 0 0 4px #19191b, 0 18px 40px rgba(0, 0, 0, 0.3);
+}
+html.night .mini-phone { background: #232220; box-shadow: 0 0 0 4px #0c0c0c, 0 18px 40px rgba(0, 0, 0, 0.6); }
+.mini-phone::before {         /* щель и свет на экране телефона */
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 22px;
+  width: 40px;
+  height: 46px;
+  translate: -50% 0;
+  border-top: 2px solid #0a0a0b;
+  clip-path: polygon(0 0, 100% 0, 125% 100%, -25% 100%);
+  background: linear-gradient(rgba(255, 180, 90, 0.75), transparent);
+}
+.mini-phone::after {          /* нижнее меню */
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 18px;
+  height: 14px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle, var(--muted) 1.6px, transparent 2px) 0 50% / 25% 100% repeat-x,
+    rgba(255, 255, 255, 0.7);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+html.night .mini-phone::after { background-color: rgba(255, 255, 255, 0.12); }
+
+/* Приглашение: пунктирная рамка вместо стекла — места ещё нет. */
+.invite {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px;
+  border: 1px dashed var(--hair);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-size: 16px;
+}
+
+/* ---------- Связаться ---------- */
+.contact-panel { border-radius: 26px; padding: 24px 20px 20px; }
+.contact-heading { font-size: 28px; font-weight: 300; line-height: 1.1; letter-spacing: -0.035em; }
+.contact-text { margin: 10px 0 20px; font-size: 16px; line-height: 1.55; color: var(--muted); }
+
+/* Список контактов в духе настроек Telegram: строка — иконка, подпись, стрелка. */
+.list { margin-top: 12px; border-radius: var(--radius); overflow: hidden; }
+.row {
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 16px;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+}
+.row:active { background: rgba(255, 180, 90, 0.14); transform: none; }
+.list li + li { position: relative; }
+.list li + li::before {          /* разделитель начинается после иконки */
+  content: "";
+  position: absolute;
+  left: 66px;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: var(--hair);
+}
+.row-icon {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  color: #fff;
+  background: linear-gradient(180deg, #2b2b2e, #0d0d0e);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+html.night .row-icon { background: linear-gradient(180deg, #4a4744, #2a2927); }
+.row-icon svg { width: 19px; height: 19px; }
+.row-title { display: block; font-size: 16px; font-weight: 500; line-height: 1.3; }
+.row-sub { display: block; font-size: 14px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-chevron { width: 16px; height: 16px; color: var(--muted); fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Шаги работы: номер тёплого цвета, тонкая линия сверху. */
+.block-title { margin: 36px 4px 4px; font-size: 28px; font-weight: 300; letter-spacing: -0.035em; line-height: 1.1; }
+.steps { margin: 0 4px; }
+.step { padding: 16px 0; border-bottom: 1px solid var(--hair); display: grid; grid-template-columns: 36px 1fr; gap: 0 8px; }
+.step:last-child { border-bottom: 0; }
+.step-number { font-size: 14px; font-weight: 500; line-height: 1.6; color: var(--step-number); font-variant-numeric: tabular-nums; }
+.step-title { font-size: 17px; font-weight: 500; letter-spacing: -0.015em; }
+.step-text { grid-column: 2; margin-top: 2px; font-size: 15px; line-height: 1.5; color: var(--muted); }
+
+.footer { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--hair); font-size: 14px; color: var(--muted); text-align: center; }
+
+/* ---------- Всплывающее сообщение ---------- */
+.toast {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--tabbar-h) + 20px + var(--safe-bottom));
+  z-index: 20;
+  max-width: calc(100% - 32px);
+  padding: 12px 18px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #f3f3f1;
+  background: rgba(25, 25, 27, 0.88);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transform: translate(-50%, 10px);
+  pointer-events: none;
+  transition: opacity 220ms ease, transform 220ms var(--ease);
+}
+html.night .toast { color: #19191b; background: rgba(237, 235, 231, 0.92); }
+.toast.is-shown { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------- Без анимаций, если в системе включено «уменьшение движения» ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation: none !important; }
+}
+
+/* ---------- Узкие телефоны (320–359 px): меню и главная кнопка помещаются в одну строку ---------- */
+@media (max-width: 359px) {
+  .tabbar { left: 4px; right: 4px; padding: 3px; }
+  .tab-glow { top: 3px; bottom: 3px; left: 3px; width: calc((100% - 6px) / 4); }
+  .tab span { letter-spacing: -0.045em; }
+  .btn-main { padding: 0 16px; font-size: 16px; gap: 8px; }
+  .contact-panel { padding: 22px 16px 16px; }
+  .screen-title { font-size: 36px; }
+}
