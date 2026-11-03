@@ -1,7 +1,8 @@
 // Логика мини-приложения:
 // 1) связь с Telegram: имя пользователя, тема, кнопка «Назад», вибрация, ссылки;
 // 2) заполнение экранов данными из data.js;
-// 3) переходы между экранами по нижнему меню.
+// 3) переходы между экранами по нижнему меню;
+// 4) лёгкий режим для слабых телефонов и отклик кнопок (подсветка и мерцание).
 // Вне Telegram (обычный браузер) всё работает так же, только без SDK.
 
 (() => {
@@ -11,6 +12,45 @@
   const inTelegram = Boolean(tg && tg.initData);
   const calm = window.matchMedia("(prefers-reduced-motion: reduce)");
   const $ = (selector) => document.querySelector(selector);
+
+  // ============================================================
+  // Лёгкий режим для слабых телефонов
+  // ============================================================
+  // Класс lite на <html> выключает самое тяжёлое (см. конец styles.css) и уменьшает число липких нитей.
+  // Сразу включается, если: Telegram на Android сам пометил телефон как слабый (LOW в описании устройства),
+  // у телефона мало памяти (≤ 2 ГБ) или ядер (≤ 2), включена экономия трафика.
+  // Иначе — замер: если первые 1,5 секунды кадры идут реже ~40 в секунду, режим включается тогда.
+  const root = document.documentElement;
+  const weakDevice =
+    /;\s*LOW\)/.test(navigator.userAgent) ||
+    (navigator.deviceMemory && navigator.deviceMemory <= 2) ||
+    (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 2) ||
+    (navigator.connection && navigator.connection.saveData);
+  const liteListeners = [];
+  function goLite() {
+    if (root.classList.contains("lite")) return;
+    root.classList.add("lite");
+    liteListeners.forEach((fn) => fn());
+  }
+  // Для проверки: адрес с ?lite=1 включает лёгкий режим, с ?lite=0 — выключает замер.
+  const liteParam = new URLSearchParams(location.search).get("lite");
+  if (weakDevice || liteParam === "1") goLite();
+  else if (liteParam !== "0") {
+    const frames = [];
+    let last = 0;
+    const sample = (now) => {
+      if (last) frames.push(now - last);
+      last = now;
+      if (frames.length < 90) requestAnimationFrame(sample);
+      else {
+        frames.sort((x, y) => x - y);
+        if (frames[Math.floor(frames.length / 2)] > 25) goLite();   // медиана кадра > 25 мс
+      }
+    };
+    // замер начинается после открытия, когда идёт самая тяжёлая анимация приветствия;
+    // в фоне (приложение свернули) кадры не идут — не меряем
+    setTimeout(() => { if (!document.hidden) requestAnimationFrame(sample); }, 300);
+  }
 
   // ============================================================
   // Telegram: тема и системные кнопки
@@ -171,6 +211,7 @@
     if (!aimLight()) return;
     homeBox.classList.remove("play");
     void homeBox.offsetWidth;                       // перезапуск CSS-анимаций
+    homeBox.classList.toggle("lite-play", root.classList.contains("lite"));
     homeBox.classList.add("play");
   }
   renderGreeting();
@@ -188,9 +229,18 @@
   nameButton.setAttribute("aria-label", `${data.name} — написать в Telegram`);
   // Липкие нити (sticky-arm.js) — короче, чем на сайте: на маленьком экране не тянутся через полстраницы.
   // near — с какого расстояния нити начинают тянуться (доля ширины кнопки), *Break — на какой длине рвутся, px.
-  if (window.StickyArmButton) {
-    window.StickyArmButton.mount(nameButton, { near: 0.4, coreBreak: [90, 135], sideBreak: [65, 105] });
+  // На слабом телефоне нитей меньше: 7 центральных и 4 боковые вместо 13 и 10.
+  function mountThreads() {
+    if (!window.StickyArmButton) return;
+    if (nameButton.__sab) nameButton.__sab.destroy();
+    const lite = root.classList.contains("lite");
+    window.StickyArmButton.mount(nameButton, Object.assign(
+      { near: 0.4, coreBreak: [90, 135], sideBreak: [65, 105] },
+      lite ? { core: 7, side: 4, segs: 16 } : {},
+    ));
   }
+  mountThreads();
+  liteListeners.push(mountThreads);
   $("[data-lead]").innerHTML = nbsp(data.home.lead);
   $("[data-text]").innerHTML = nbsp(data.home.text);
 
@@ -261,14 +311,28 @@
     if (!target) return;
     if (target.dataset.tab || target === themeToggle) return;   // меню и переключатель темы — свои обработчики
     haptic.tap();
-    if (target.dataset.discuss) openTelegram(data.services[target.dataset.discuss].message);
-    else if (target.hasAttribute("data-discuss-project")) openTelegram("Здравствуйте! Хочу обсудить проект.");
-    else if (target.dataset.openWork) openLink(data.portfolio[target.dataset.openWork].url);
-    else if (target.hasAttribute("data-telegram-button") || target.hasAttribute("data-name-button")) openTelegram();
-    else if (target.dataset.contact === "telegram") openTelegram();
-    else if (target.dataset.contact === "instagram") openLink(`https://instagram.com/${data.instagram}`);
-    else if (target.dataset.contact === "email") copyEmail();
+    // Почта копируется сразу: браузер разрешает доступ к буферу обмена только в момент нажатия.
+    if (target.dataset.contact === "email") { copyEmail(); return; }
+    // Ссылки открываются с паузой 0,26 с — чтобы успело мелькнуть мерцание кнопки.
+    const later = (fn) => setTimeout(fn, calm.matches ? 0 : 260);
+    if (target.dataset.discuss) later(() => openTelegram(data.services[target.dataset.discuss].message));
+    else if (target.hasAttribute("data-discuss-project")) later(() => openTelegram("Здравствуйте! Хочу обсудить проект."));
+    else if (target.dataset.openWork) later(() => openLink(data.portfolio[target.dataset.openWork].url));
+    else if (target.hasAttribute("data-telegram-button") || target.hasAttribute("data-name-button")) later(() => openTelegram());
+    else if (target.dataset.contact === "telegram") later(() => openTelegram());
+    else if (target.dataset.contact === "instagram") later(() => openLink(`https://instagram.com/${data.instagram}`));
   });
+  // Любая кнопка при нажатии коротко мерцает тёплым светом (анимация flicker в styles.css).
+  // Слушаем в фазе перехвата — до остальных обработчиков, чтобы мерцание шло и у меню, и у переключателя темы.
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("button");
+    if (!button) return;
+    button.classList.remove("flicker");
+    void button.offsetWidth;                         // перезапуск, если нажали снова, пока мерцает
+    button.classList.add("flicker");
+    clearTimeout(button.flickerTimer);
+    button.flickerTimer = setTimeout(() => button.classList.remove("flicker"), 500);
+  }, true);
   // В Safari на iPhone :active (отклик на касание) работает, только если на странице есть touchstart.
   document.addEventListener("touchstart", () => {}, { passive: true });
 

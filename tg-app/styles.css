@@ -104,7 +104,9 @@ html.night .app {
 }
 html.night .backdrop { opacity: 0; }
 
-.screens { position: absolute; inset: 0; }
+/* Контейнер для размеров: на «Главной» шрифты и сцена считаются в cqw/cqh —
+   долях ширины и высоты окна приложения, а не всего экрана телефона. */
+.screens { position: absolute; inset: 0; container-type: size; }
 .screen {
   position: absolute;
   inset: 0;
@@ -113,7 +115,6 @@ html.night .backdrop { opacity: 0; }
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   padding: calc(24px + var(--safe-top)) 16px calc(var(--tabbar-h) + 32px + var(--safe-bottom));
-  will-change: transform, opacity;
 }
 .screen[hidden] { display: none; }
 
@@ -351,7 +352,8 @@ html.night .tab-glow {
   position: relative;
   align-self: stretch;
   margin: 0 -16px;                         /* во всю ширину экрана, без полей */
-  height: clamp(320px, 46vh, 400px);
+  height: clamp(270px, 44vh, 400px);
+  height: clamp(270px, 44cqh, 400px);
 }
 .scene-bg {
   position: absolute;
@@ -471,10 +473,11 @@ html.night .slit-beam { opacity: 0.95; }
   position: absolute;
   left: 16px;
   right: 16px;
-  top: calc(var(--slit-y, 26%) + 20px);
+  top: calc(var(--slit-y, 26%) + clamp(12px, 2.4cqh, 22px));
   margin: 0;
   font-family: var(--display);
-  font-size: clamp(30px, 10.6vw, 44px);
+  font-size: clamp(22px, 7vw, 30px);
+  font-size: clamp(22px, min(7cqw, 4cqh), 30px);
   font-weight: 340;
   line-height: 1.08;
   letter-spacing: -0.035em;
@@ -506,13 +509,14 @@ html.night .greeting .ch { text-shadow: 0 0 20px rgba(255, 190, 110, calc(var(--
   left: 0;
   right: 0;
   /* Без transform: иначе рассеянный свет вокруг кнопки не смешивался бы с картинкой под ней. */
-  bottom: 26px;
+  bottom: clamp(14px, 3cqh, 28px);
   display: flex;
   justify-content: center;
 }
 /* Кнопка появляется, когда свет дошёл до краёв приветствия. */
 @media (prefers-reduced-motion: no-preference) {
-  .home.play .name-btn { animation: settle 1s cubic-bezier(0.22, 1, 0.36, 1) 0.95s backwards; }
+  /* анимируется обёртка, а не сама кнопка: у кнопки своя анимация — мерцание при нажатии */
+  .home.play .home-title { animation: settle 1s cubic-bezier(0.22, 1, 0.36, 1) 0.95s backwards; }
 }
 @keyframes settle { from { opacity: 0; transform: translateY(14px) scale(0.96); } }
 
@@ -580,11 +584,11 @@ html.night .greeting .ch { text-shadow: 0 0 20px rgba(255, 190, 110, calc(var(--
 html.night .sab-btn { --sab-strand: #d6d2cb; --sab-strand-hl: rgba(0, 0, 0, 0.22); }
 /* Размер кнопки с именем: крупнее, чем на сайте, — это главный элемент экрана. */
 .name-btn {
-  height: 68px;
-  padding: 0 32px 0 28px;
+  height: clamp(54px, 8cqh, 66px);
+  padding: 0 clamp(24px, 8cqw, 32px) 0 clamp(20px, 7cqw, 28px);
   gap: 12px;
   font-family: var(--display);
-  font-size: 25px;
+  font-size: clamp(20px, min(6.2cqw, 3.2cqh), 24px);
   font-weight: 300;
   letter-spacing: -0.02em;
   line-height: 1;
@@ -628,7 +632,7 @@ html.night .home-title::before { opacity: 0.9; }
   position: relative;
   margin-top: 4px;
   max-width: 19em;
-  font-size: 21px;
+  font-size: clamp(17px, min(5.3cqw, 2.6cqh), 21px);
   font-weight: 450;
   line-height: 1.3;
   letter-spacing: -0.02em;
@@ -638,7 +642,7 @@ html.night .home-title::before { opacity: 0.9; }
 .home-text {
   margin-top: 10px;
   max-width: 27em;
-  font-size: 16px;
+  font-size: clamp(15px, 4.2cqw, 16px);
   line-height: 1.55;
   color: var(--muted);
   text-wrap: pretty;
@@ -896,16 +900,6 @@ html.night .toast { color: #19191b; background: rgba(237, 235, 231, 0.92); }
   .screen-title { font-size: 29px; }
 }
 
-/* ---------- Невысокие экраны (iPhone SE и т. п.): сцена и приветствие компактнее, всё помещается без прокрутки ---------- */
-@media (max-height: 640px) {
-  .scene { height: 290px; }
-  .greeting { top: calc(var(--slit-y, 26%) + 14px); font-size: clamp(28px, 9.4vw, 36px); }
-  .home-title { bottom: 16px; }
-  .name-btn { height: 60px; font-size: 22px; padding: 0 26px 0 22px; }
-  .home-lead { font-size: 18px; }
-  .home-text { font-size: 15px; }
-}
-
 /* ---------- Переключатель дня и ночи: стеклянная пилюля с ползунком, как в шапке сайта ---------- */
 .theme-toggle {
   position: absolute;
@@ -958,3 +952,53 @@ html.night .theme-toggle { background: rgba(255, 255, 255, 0.14); box-shadow: in
 html.night .theme-toggle .knob { transform: translateX(20px); background: radial-gradient(120% 90% at 30% 15%, #f4f1ec, #bdb8af); }
 html.night .theme-toggle .sun { display: none; }
 html.night .theme-toggle .moon { display: block; }
+
+/* ---------- Отклик кнопок: тёплый свет, как из щели ----------
+   Наведение курсора (Telegram на компьютере) или касание пальцем — надпись и иконка
+   загораются тем же тёплым цветом, что свечение вокруг кнопки с именем.
+   Нажатие — свет коротко мерцает, как лампа (класс flicker ставит app.js на 0,5 с).
+   --lit — цвет надписи, --lit-dim — «провал» при мерцании, --lit-glow — ореол вокруг букв.
+   На светлом стекле днём цвет темнее, иначе янтарь не читается; на чёрном лаке — светлый. */
+:root { --lit: #e3801f; --lit-dim: #a8651f; --lit-glow: rgba(255, 170, 80, 0.5); }
+html.night, .name-btn, .btn-main, .row-icon { --lit: #ffc27a; --lit-dim: #a8794a; --lit-glow: rgba(255, 180, 90, 0.75); }
+:is(.tab, .btn-ghost, .btn-main, .name-btn, .row-title, .row-icon) { transition: color 0.3s ease, text-shadow 0.3s ease; }
+@media (hover: hover) {
+  :is(.tab, .btn-ghost, .btn-main, .name-btn):hover,
+  .row:hover :is(.row-title, .row-icon) { color: var(--lit); text-shadow: 0 0 12px var(--lit-glow); }
+}
+:is(.tab, .btn-ghost, .btn-main, .name-btn):active,
+.row:active :is(.row-title, .row-icon) { color: var(--lit); text-shadow: 0 0 12px var(--lit-glow); transition-duration: 0.08s; }
+:is(.tab, .btn-ghost, .btn-main, .name-btn).flicker,
+.row.flicker :is(.row-title, .row-icon) { animation: flicker 0.48s linear both; }
+@keyframes flicker {
+  0%, 24%, 52%  { color: var(--lit); text-shadow: 0 0 10px var(--lit-glow), 0 0 22px var(--lit-glow); }
+  12%, 38%      { color: var(--lit-dim); text-shadow: none; }
+  100%          { color: var(--lit); text-shadow: 0 0 12px var(--lit-glow); }
+}
+/* Тёплый ореол за кнопкой (и за переключателем темы) мерцает вместе с надписью. */
+:is(.btn-main, .btn-ghost, .theme-toggle).flicker::after { animation: glow-flicker 0.48s linear both; }
+@keyframes glow-flicker {
+  0%, 24%, 52% { opacity: 0.9; }
+  12%, 38%     { opacity: 0.2; }
+  100%         { opacity: 0; }
+}
+
+/* ---------- Лёгкий режим для слабых телефонов (класс lite на <html>, ставит app.js) ----------
+   Самое дорогое — размытие фона под стеклом и бесконечно текущий свет: они перерисовываются
+   каждый кадр. Здесь стекло становится плотным, свет — неподвижным, буквы приветствия
+   загораются без размытия и смены толщины. Вид почти тот же, работы видеокарте — в разы меньше. */
+html.lite :is(.glass, .btn-ghost, .tabbar, .theme-toggle, .toast) { -webkit-backdrop-filter: none; backdrop-filter: none; }
+html.lite .glass { background: rgba(255, 255, 255, 0.9); }
+html.lite.night .glass { background: rgba(48, 46, 43, 0.94); }
+html.lite .btn-ghost { background-color: rgba(255, 255, 255, 0.85); }
+html.lite.night .btn-ghost { background-color: rgba(60, 58, 55, 0.95); }
+html.lite .tabbar { background-color: rgba(255, 255, 255, 0.94); }
+html.lite.night .tabbar { background-color: rgba(44, 42, 40, 0.97); }
+html.lite :is(.slit-light, .slit-edge, .slit-beam) { animation: none; }
+html.lite .scene-img::after { display: none; }
+/* класс lite-play ставится в момент запуска: если лёгкий режим включится посреди показа, анимация не начнётся заново */
+.home.play.lite-play .greeting .ch { animation-name: ignite-lite; }
+@keyframes ignite-lite {
+  0%  { opacity: 0; translate: 0 0.12em; color: #ffb45a; }
+  40% { opacity: 1; translate: 0 0; color: #f59a3c; }
+}
