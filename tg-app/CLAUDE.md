@@ -46,6 +46,6 @@
 ## Публикация и проверка
 
 - Netlify копирует папку в `_site/tg-app/` (команда в `../netlify.toml`), этот файл не публикуется. Адрес после публикации: https://stvnislv.netlify.app/tg-app/
-- Подключение к боту: в @BotFather — `/newapp` (или Menu Button у бота) и этот адрес. Делает владелец.
+- Бот: @stvnislv_bot. Подключение в @BotFather — Menu Button (кнопка у поля ввода) и `/newapp` (прямая ссылка `t.me/stvnislv_bot/<короткое имя>`). Делает владелец, после публикации.
 - Проверка: открыть `index.html` в Chrome, включить режим устройства (DevTools → Toggle device toolbar) с шириной 320, 375 и 430 px. Тёмную тему — через DevTools → Rendering → `prefers-color-scheme: dark`. Режим без анимаций — флаг `--force-prefers-reduced-motion`.
 - Правила для git — как во всём проекте (`../CLAUDE.md`): коммит без push, публикация только по слову «публикуй».
