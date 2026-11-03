@@ -109,6 +109,25 @@
     chevron: '<svg class="row-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>',
   };
 
+  // Щель на главной: где на картинке hero-bg.jpg лежит линия (доли ширины и высоты картинки) —
+  // те же числа, что SLIT на сайте. Картинка растянута по cover и стоит по центру, поэтому
+  // положение линии пересчитывается под размер сцены, и свет всегда точно под щелью.
+  const SLIT = { imageW: 2576, imageH: 1449, left: 0.4075, width: 0.185, top: 0.2595 };
+  const scene = $("[data-scene]");
+  function placeSlit() {
+    const w = scene.clientWidth, h = scene.clientHeight;
+    if (!w || !h) return;                            // «Главная» скрыта — пересчитаем, когда откроется
+    const scale = Math.max(w / SLIT.imageW, h / SLIT.imageH);
+    const offsetX = (w - SLIT.imageW * scale) / 2;
+    const offsetY = (h - SLIT.imageH * scale) / 2;
+    scene.style.setProperty("--slit-x", `${offsetX + SLIT.left * SLIT.imageW * scale}px`);
+    scene.style.setProperty("--slit-w", `${SLIT.width * SLIT.imageW * scale}px`);
+    scene.style.setProperty("--slit-y", `${offsetY + SLIT.top * SLIT.imageH * scale}px`);
+  }
+  placeSlit();
+  if ("ResizeObserver" in window) new ResizeObserver(placeSlit).observe(scene);
+  else window.addEventListener("resize", placeSlit);
+
   // Главная: приветствие по имени из Telegram, кнопка с именем мастера (открывает чат), фраза.
   const user = inTelegram && tg.initDataUnsafe && tg.initDataUnsafe.user;
   $("[data-greeting]").textContent = user && user.first_name ? `Здравствуйте, ${user.first_name}!` : "Здравствуйте!";

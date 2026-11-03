@@ -337,54 +337,151 @@ html.night .tab-glow {
   align-items: center;
   text-align: center;
 }
-.kicker { font-size: 16px; line-height: 1.5; letter-spacing: -0.01em; color: var(--muted); min-height: 1.5em; }
-.home-stage {
+/* ---------- Сцена главной: щель и свет — как на первом экране сайта ----------
+   Слои и цвета перенесены из index.html. --slit-x, --slit-y, --slit-w (где линия щели)
+   ставит app.js по координатам линии на картинке hero-bg.jpg. */
+.scene {
   position: relative;
-  width: 100%;
-  margin-top: 8px;
-  padding: 118px 0 28px;          /* кнопка с именем стоит в пятне света под щелью */
+  align-self: stretch;
+  margin: 0 -16px;                         /* во всю ширину экрана, без полей */
+  height: clamp(300px, 44vh, 370px);
+}
+.scene-bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  /* картинка растворяется в фоне приложения со всех сторон, без видимой границы */
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 58%, transparent 100%), linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 58%, transparent 100%), linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+  mask-composite: intersect;
+}
+/* Светлое поле, чёрная линия и мягкая тень под ней. Ночью картинки нет — только свет. */
+.scene-img {
+  position: absolute;
+  inset: 0;
+  background: url("hero-bg.jpg") center / cover no-repeat;
+  transition: opacity 0.6s ease;
+}
+.scene-img::after {                        /* тень на 10% глубже — та же картинка в режиме умножения */
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: inherit;
+  mix-blend-mode: multiply;
+  opacity: 0.18;
+}
+html.night .scene-img { opacity: 0; }
+/* Линия поверх такой же линии на картинке: нужна, чтобы «прочертить» её при открытии. */
+.slit {
+  position: absolute;
+  left: var(--slit-x, 29%);
+  width: var(--slit-w, 42%);
+  top: calc(var(--slit-y, 26%) - 1px);
+  height: 2px;
+  border-radius: 2px;
+  background: #050505;
+  transition: box-shadow 0.6s ease;
+}
+html.night .slit { box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08); }
+/* Тёплый свет, который пробивается из щели, как из-под двери. */
+.slit-light {
+  position: absolute;
+  left: var(--slit-x, 29%);
+  width: var(--slit-w, 42%);
+  top: calc(var(--slit-y, 26%) + 1px);
+  height: 22px;
+  background: linear-gradient(90deg, #ffb45a, #ffd9a0, #fff3dc, #ffc778, #ff9e4a, #ffd9a0, #ffb45a, #ffd9a0) 0 0 / 200% 100%;
+  filter: blur(6px);
+  -webkit-mask-image: linear-gradient(180deg, #000, transparent), linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(180deg, #000, transparent), linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent);
+  mask-composite: intersect;
+  mix-blend-mode: screen;
+}
+/* Тонкая яркая кромка света прямо под линией. */
+.slit-edge {
+  position: absolute;
+  left: var(--slit-x, 29%);
+  width: var(--slit-w, 42%);
+  top: calc(var(--slit-y, 26%) + 1px);
+  height: 2px;
+  background: linear-gradient(90deg, #ffb45a, #ffd9a0, #fff3dc, #ffc778, #ff9e4a, #ffd9a0, #ffb45a, #ffd9a0) 0 0 / 200% 100%;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+  filter: blur(0.6px);
+  mix-blend-mode: screen;
+}
+/* Из щели расходится треугольник тёплого света: насыщенный в центре, к краям бледнеет. */
+.slit-beam {
+  position: absolute;
+  top: var(--slit-y, 26%);
+  left: calc(var(--slit-x, 29%) - var(--slit-w, 42%) * 1.75);
+  width: calc(var(--slit-w, 42%) * 4.5);
+  height: 100%;
+  filter: blur(22px);
+  mix-blend-mode: screen;
+  opacity: 0.55;
+  will-change: opacity;                    /* «дыхание» света — без перерисовки размытия каждый кадр */
+}
+.slit-beam::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(38.9% 0, 61.1% 0, 100% 100%, 0 100%);
+  background:
+    radial-gradient(50% 70% at 50% 0%, rgba(255, 196, 120, 0.6), rgba(255, 196, 120, 0) 70%),
+    linear-gradient(90deg,
+      rgba(255, 240, 220, 0) 0%, rgba(255, 228, 192, 0.155) 14%, rgba(255, 210, 150, 0.35) 30%, rgba(255, 190, 120, 0.57) 42%,
+      rgba(255, 170, 92, 0.77) 50%, rgba(255, 190, 120, 0.57) 58%, rgba(255, 210, 150, 0.35) 70%, rgba(255, 228, 192, 0.155) 86%, rgba(255, 240, 220, 0) 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000, rgba(0, 0, 0, 0.65) 40%, transparent 97%);
+  mask-image: linear-gradient(to bottom, #000, rgba(0, 0, 0, 0.65) 40%, transparent 97%);
+}
+html.night .slit-beam { opacity: 0.95; }
+/* При открытии, коротко: прочерчивается линия, загорается свет. Потом свет медленно течёт и дышит. */
+@media (prefers-reduced-motion: no-preference) {
+  .slit { animation: slit-draw 0.9s cubic-bezier(0.65, 0, 0.35, 1) 0.1s both; }
+  .slit-light { animation: light-in 1.4s ease 0.6s both, light-flow 18s linear 0.6s infinite, light-breathe 9s ease-in-out 2s infinite; }
+  .slit-edge { animation: light-in 1.2s ease 0.5s both, light-flow 18s linear 0.5s infinite; }
+  .slit-beam { animation: beam-in 1.8s ease 0.6s both, beam-breathe 10s ease-in-out 2.4s infinite; }
+}
+@keyframes slit-draw { from { transform: scaleX(0); } }
+@keyframes light-in { from { opacity: 0; } }
+@keyframes light-flow { to { background-position: -200% 0; } }
+@keyframes light-breathe { 50% { opacity: 0.85; } }
+@keyframes beam-in { from { opacity: 0; } }
+@keyframes beam-breathe { 50% { opacity: 0.85; } }
+/* Пока «Главная» скрыта, бесконечные анимации света стоят — экономия батареи. */
+.screen[hidden] :is(.slit-light, .slit-edge, .slit-beam) { animation-play-state: paused; }
+
+/* Приветствие — над щелью, кнопка с именем — в пятне света под ней. */
+.kicker {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  top: calc(var(--slit-y, 26%) - 44px);
+  font-size: 16px;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+  color: var(--muted);
+  min-height: 1.5em;
+}
+.home-title {
+  position: absolute;
+  margin: 0;
+  font: inherit;
+  left: 0;
+  right: 0;
+  /* середина между щелью и низом сцены; 38px — половина высоты кнопки.
+     Без transform: иначе рассеянный свет вокруг кнопки не смешивался бы с картинкой под ней. */
+  top: calc(var(--slit-y, 26%) + (100% - var(--slit-y, 26%)) * 0.5 - 38px);
   display: flex;
   justify-content: center;
 }
-/* Щель: тонкая чёрная линия, из-под неё вниз льётся тёплый треугольник света. */
-.slit { position: absolute; inset: 0; pointer-events: none; }
-.slit-line {
-  position: absolute;
-  left: 50%;
-  top: 10px;
-  width: 44%;
-  height: 3px;
-  translate: -50% 0;
-  border-radius: 3px;
-  background: #0a0a0b;
-  box-shadow: 0 1px 0 rgba(255, 220, 170, 0.9), 0 3px 10px rgba(255, 180, 90, 0.7);
-}
-html.night .slit-line { background: #050505; box-shadow: 0 1px 0 rgba(255, 232, 194, 0.95), 0 3px 14px rgba(255, 190, 110, 0.9); }
-.slit-beam {
-  position: absolute;
-  left: 50%;
-  top: 12px;
-  width: 100%;
-  height: 92%;
-  translate: -50% 0;
-  clip-path: polygon(30.4% 0, 69.6% 0, 100% 100%, 0 100%);
-  background: linear-gradient(90deg, transparent, rgba(255, 196, 120, 0.35) 30%, rgba(255, 180, 90, 0.6) 50%, rgba(255, 196, 120, 0.35) 70%, transparent);
-  -webkit-mask-image: linear-gradient(#000, rgba(0, 0, 0, 0.35) 55%, transparent);
-  mask-image: linear-gradient(#000, rgba(0, 0, 0, 0.35) 55%, transparent);
-  filter: blur(10px);
-  opacity: 0.6;
-}
-html.night .slit-beam { opacity: 0.85; mix-blend-mode: screen; }
-@media (prefers-reduced-motion: no-preference) {
-  /* Свет медленно «дышит». */
-  .slit-beam { animation: breathe 6s ease-in-out infinite; }
-  @keyframes breathe { 50% { opacity: 0.4; } }
-  html.night .slit-beam { animation-name: breathe-night; }
-  @keyframes breathe-night { 50% { opacity: 0.6; } }
-}
+
 /* Кнопка с именем — чёрный лак с липкими нитями, как «Написать в Telegram» на сайте.
    Нити рисует sticky-arm.js; здесь — сама кнопка (CSS скопирован с сайта) и её размер. */
-.home-title { position: relative; font-size: inherit; font-weight: inherit; }
 .sab-btn {
   position: relative;
   isolation: isolate;
@@ -456,12 +553,45 @@ html.night .sab-btn { --sab-strand: #d6d2cb; --sab-strand-hl: rgba(0, 0, 0, 0.22
   line-height: 1;
 }
 .name-btn svg { width: 24px; height: 24px; }
+/* Свет из щели падает на кнопку сверху, как в жизни:
+   на верхней кромке — тёплый блик, по верху лака — мягкий отсвет,
+   над кромкой свет немного рассеивается, а вниз падает обычная тёмная тень, а не цветной ореол. */
+.name-btn {
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 226, 180, 0.75),
+    inset 0 7px 14px -8px rgba(255, 196, 120, 0.35),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -12px 16px -8px rgba(0, 0, 0, 0.95),
+    inset 7px 0 10px -7px rgba(255, 255, 255, 0.18),
+    inset -6px 0 10px -7px rgba(255, 255, 255, 0.1),
+    0 -5px 18px -6px rgba(255, 190, 110, 0.4),
+    0 2px 3px rgba(0, 0, 0, 0.35),
+    0 16px 24px -12px rgba(0, 0, 0, 0.42),
+    0 36px 52px -26px rgba(0, 0, 0, 0.32);
+}
+/* Рассеянное пятно тёплого света вокруг кнопки: шире и ярче сверху, к краям гаснет без границы. */
+.home-title::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -110px;
+  width: 360px;
+  height: 260px;
+  translate: -50% 0;
+  background: radial-gradient(50% 50% at 50% 46%, rgba(255, 200, 130, 0.55), rgba(255, 176, 96, 0.22) 45%, rgba(255, 170, 90, 0) 75%);
+  filter: blur(26px);
+  mix-blend-mode: screen;
+  opacity: 0.7;
+  pointer-events: none;
+}
+html.night .home-title::before { opacity: 0.9; }
 .name-btn span { padding-bottom: 2px; }   /* у тонкого Geist визуальный центр выше — выравниваем с иконкой */
 
 /* Типографика главной: одна гарнитура, иерархия ростом и весом, без цветных выделений.
    Подзаголовок — тонкий и крупный, фраза — спокойный текст с удобной длиной строки. */
 .home-role {
-  margin-top: 4px;
+  margin-top: -36px;               /* низ сцены — растворяющаяся тень, текст заходит на неё */
+  position: relative;
   font-size: 22px;
   font-weight: 300;
   line-height: 1.2;

@@ -43,10 +43,18 @@
     <!-- 1. Главная: имя-кнопка с липкими нитями (открывает чат в Telegram) и фраза о себе. -->
     <section class="screen screen-home" id="home" data-screen="home" aria-labelledby="home-title">
       <div class="home">
-        <p class="kicker" data-greeting></p>
-        <!-- Щель и тёплый свет, как на первом экране сайта; свет падает на кнопку с именем. -->
-        <div class="home-stage">
-          <div class="slit" aria-hidden="true"><span class="slit-line"></span><span class="slit-beam"></span></div>
+        <!-- Сцена — первый экран сайта в миниатюре: картинка hero-bg.jpg (чёрная щель и тень под ней)
+             и слои тёплого света из щели. Положение щели считает app.js (SLIT), свет всегда точно под ней.
+             Кнопка с именем стоит в этом свете. -->
+        <div class="scene" data-scene>
+          <div class="scene-bg" aria-hidden="true">
+            <div class="scene-img"></div>
+            <div class="slit-beam"></div>
+            <div class="slit"></div>
+            <div class="slit-light"></div>
+            <div class="slit-edge"></div>
+          </div>
+          <p class="kicker" data-greeting></p>
           <h1 class="home-title" id="home-title">
             <button type="button" class="sab-btn name-btn" data-name-button data-sticky-arm></button>
           </h1>
