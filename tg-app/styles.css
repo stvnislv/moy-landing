@@ -1003,3 +1003,149 @@ html.lite .scene-img::after { display: none; }
   0%  { opacity: 0; translate: 0 0.12em; color: #ffb45a; }
   40% { opacity: 1; translate: 0 0; color: #f59a3c; }
 }
+
+/* ---------- Оффер: окно поверх приложения при первом открытии ----------
+   Полупрозрачный фон, карточка по центру. Кнопка — синий Telegram (#2AABEE): это действие
+   ведёт в Telegram-бота, и цвет сразу это подсказывает. Появление: фон проявляется,
+   карточка поднимается и «садится» с лёгким пружинящим масштабом, эмодзи подпрыгивает следом.
+   Закрытие — то же в обратную сторону, быстрее (класс is-closing). */
+.offer {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: calc(16px + var(--safe-top)) 16px calc(16px + var(--safe-bottom));
+}
+.offer[hidden] { display: none; }
+.offer-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 18, 16, 0.5);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+html.lite .offer-backdrop { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(20, 18, 16, 0.62); }
+.offer-card {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 28px 22px 14px;
+  border-radius: 28px;
+  text-align: center;
+  background: #fbfaf8;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 24px 60px -12px rgba(0, 0, 0, 0.45);
+}
+html.night .offer-card { background: #2a2826; box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 24px 60px -12px rgba(0, 0, 0, 0.7); }
+/* Эмодзи в тёплом круге — тот же свет, что из щели. */
+.offer-emoji {
+  width: 84px;
+  height: 84px;
+  margin: 0 auto 16px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 46px;
+  line-height: 1;
+  background: radial-gradient(circle at 50% 40%, rgba(255, 214, 160, 0.9), rgba(255, 180, 90, 0.35) 60%, rgba(255, 180, 90, 0) 72%);
+}
+.offer-title {
+  font-family: var(--display);
+  font-size: clamp(20px, 6.2vw, 23px);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.offer-text {
+  margin-top: 10px;
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--muted);
+  text-wrap: pretty;
+}
+.offer-label {
+  margin-top: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.offer-list {
+  margin: 10px 0 0;
+  padding: 4px 16px;
+  text-align: left;
+  border-radius: 18px;
+  background: rgba(25, 25, 27, 0.04);
+}
+html.night .offer-list { background: rgba(255, 255, 255, 0.05); }
+.offer-list li {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 10px 0;
+  font-size: 15px;
+  line-height: 1.4;
+}
+.offer-list li + li { border-top: 1px solid var(--hair); }
+.offer-list svg { width: 22px; height: 22px; color: #2aabee; }
+/* Яркая кнопка на всю ширину. */
+.offer-cta {
+  width: 100%;
+  min-height: 52px;
+  margin-top: 20px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 999px;
+  font-size: 17px;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(180deg, #3cb6f2, #2aabee 55%, #229ad8);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 10px 24px -8px rgba(42, 171, 238, 0.7);
+  transition: transform 160ms var(--ease), filter 160ms ease;
+}
+.offer-cta svg { width: 20px; height: 20px; flex-shrink: 0; }
+.offer-cta:active { transform: scale(0.97); filter: brightness(1.08); }
+@media (hover: hover) { .offer-cta:hover { filter: brightness(1.06); } }
+.offer-skip {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 6px;
+  font-size: 15px;
+  color: var(--muted);
+  border-radius: 999px;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+.offer-skip:active { background: rgba(127, 127, 127, 0.12); }
+@media (hover: hover) { .offer-skip:hover { color: var(--ink); } }
+/* Появление и закрытие. */
+@media (prefers-reduced-motion: no-preference) {
+  .offer:not([hidden]) .offer-backdrop { animation: offer-fade 0.3s ease both; }
+  .offer:not([hidden]) .offer-card { animation: offer-in 0.55s cubic-bezier(0.2, 1.2, 0.35, 1) 0.05s both; }
+  .offer:not([hidden]) .offer-emoji { animation: offer-pop 0.6s cubic-bezier(0.25, 1.6, 0.4, 1) 0.25s both; }
+  .offer.is-closing .offer-backdrop { animation: offer-fade 0.22s ease reverse both; }
+  .offer.is-closing .offer-card { animation: offer-out 0.22s ease-in both; }
+}
+@keyframes offer-fade { from { opacity: 0; } }
+@keyframes offer-in { from { opacity: 0; transform: translateY(28px) scale(0.94); } }
+@keyframes offer-out { to { opacity: 0; transform: translateY(16px) scale(0.97); } }
+@keyframes offer-pop { from { opacity: 0; transform: scale(0.4) rotate(-12deg); } }
+/* Невысокие экраны (iPhone SE и т. п.): карточка компактнее, чтобы кнопка была видна без прокрутки. */
+@media (max-height: 640px) {
+  .offer-card { padding: 18px 18px 8px; border-radius: 24px; }
+  .offer-emoji { width: 60px; height: 60px; margin-bottom: 10px; font-size: 32px; }
+  .offer-title { font-size: 20px; }
+  .offer-text { margin-top: 6px; font-size: 15px; line-height: 1.35; }
+  .offer-label { margin-top: 12px; }
+  .offer-list { margin-top: 6px; }
+  .offer-list li { padding: 6px 0; font-size: 14px; line-height: 1.35; }
+  .offer-cta { margin-top: 14px; min-height: 48px; }
+  .offer-skip { margin-top: 2px; }
+}

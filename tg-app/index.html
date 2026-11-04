@@ -115,6 +115,21 @@
     </button>
   </nav>
 
+  <!-- Оффер: показывается один раз, при первом открытии (app.js, раздел «Оффер»).
+       Тексты и ссылка — APP_DATA.offer в data.js. -->
+  <div class="offer" data-offer hidden>
+    <div class="offer-backdrop" data-offer-close></div>
+    <section class="offer-card" role="dialog" aria-modal="true" aria-labelledby="offer-title" aria-describedby="offer-text">
+      <div class="offer-emoji" aria-hidden="true" data-offer-emoji></div>
+      <h2 class="offer-title" id="offer-title" data-offer-title></h2>
+      <p class="offer-text" id="offer-text" data-offer-text></p>
+      <p class="offer-label" data-offer-label></p>
+      <ul class="offer-list" data-offer-list></ul>
+      <button type="button" class="offer-cta" data-offer-cta></button>
+      <button type="button" class="offer-skip" data-offer-close data-offer-skip></button>
+    </section>
+  </div>
+
   <!-- Короткое сообщение внизу экрана, например «Почта скопирована». -->
   <div class="toast" role="status" aria-live="polite"></div>
 </div>

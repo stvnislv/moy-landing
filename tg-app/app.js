@@ -534,4 +534,56 @@
   }
   updateMenu();
   if (current === "home") playHome();
+
+  // ============================================================
+  // Оффер: окно поверх приложения при первом открытии, один раз
+  // ============================================================
+  // Что показано, запоминается в localStorage (ключ offerSeen) — в хранилище браузера на этом телефоне.
+  // Запоминается сразу при показе: закрыл приложение, не нажав ничего, — второй раз окно не появится.
+  // Для проверки: адрес с ?offer=1 показывает окно всегда.
+  const offer = data.offer;
+  const offerBox = $("[data-offer]");
+  const OFFER_KEY = "offerSeen";
+  const checkIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>';
+  $("[data-offer-emoji]").textContent = offer.emoji;
+  $("[data-offer-title]").innerHTML = nbsp(offer.title);
+  $("[data-offer-text]").innerHTML = nbsp(offer.text);
+  $("[data-offer-label]").textContent = offer.label;
+  $("[data-offer-list]").innerHTML = offer.bullets.map((b) => `<li>${checkIcon}<span>${nbsp(b)}</span></li>`).join("");
+  $("[data-offer-cta]").innerHTML = `${icons.telegram}<span>${esc(offer.button)}</span>`;
+  $("[data-offer-skip]").textContent = offer.skip;
+
+  const behind = [$(".screens"), $(".tabbar"), themeToggle];   // пока окно открыто, приложение под ним недоступно
+  let lastFocus = null;
+  function openOffer() {
+    try { localStorage.setItem(OFFER_KEY, "1"); } catch { /* хранилище недоступно — покажется ещё раз, не страшно */ }
+    lastFocus = document.activeElement;
+    behind.forEach((el) => { el.inert = true; });
+    offerBox.hidden = false;
+    $("[data-offer-cta]").focus({ preventScroll: true });
+    haptic.tap();
+  }
+  function closeOffer() {
+    if (offerBox.hidden || offerBox.classList.contains("is-closing")) return;
+    behind.forEach((el) => { el.inert = false; });
+    const finish = () => { offerBox.hidden = true; offerBox.classList.remove("is-closing"); };
+    if (calm.matches) finish();
+    else { offerBox.classList.add("is-closing"); setTimeout(finish, 230); }
+    if (lastFocus && lastFocus.focus) lastFocus.focus({ preventScroll: true });
+  }
+  $("[data-offer-cta]").addEventListener("click", () => {
+    setTimeout(() => {                                // мерцание кнопки успевает мелькнуть
+      if (inTelegram) tg.openTelegramLink(offer.url);
+      else window.open(offer.url, "_blank", "noopener");
+      closeOffer();
+    }, calm.matches ? 0 : 200);
+  });
+  offerBox.querySelectorAll("[data-offer-close]").forEach((el) => el.addEventListener("click", closeOffer));
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeOffer(); });
+
+  let offerSeen = false;
+  try { offerSeen = localStorage.getItem(OFFER_KEY) === "1"; } catch { /* нет хранилища — считаем, что не видел */ }
+  if (new URLSearchParams(location.search).get("offer") === "1") offerSeen = false;
+  // Окно — после того как приложение показалось и приветствие загорелось (~1,4 с), а не поверх пустого экрана.
+  if (!offerSeen) setTimeout(openOffer, calm.matches ? 300 : 1400);
 })();
