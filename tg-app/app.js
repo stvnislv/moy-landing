@@ -230,8 +230,10 @@
   // Липкие нити (sticky-arm.js) — короче, чем на сайте: на маленьком экране не тянутся через полстраницы.
   // near — с какого расстояния нити начинают тянуться (доля ширины кнопки), *Break — на какой длине рвутся, px.
   // На слабом телефоне нитей меньше: 7 центральных и 4 боковые вместо 13 и 10.
+  let threadsPaused = false;                         // true, пока открыто окно-оффер
   function mountThreads() {
-    if (!window.StickyArmButton) return;
+    if (!window.StickyArmButton || threadsPaused) return;
+    threadsPaused = true;
     if (nameButton.__sab) nameButton.__sab.destroy();
     const lite = root.classList.contains("lite");
     window.StickyArmButton.mount(nameButton, Object.assign(
@@ -559,6 +561,8 @@
     try { localStorage.setItem(OFFER_KEY, "1"); } catch { /* хранилище недоступно — покажется ещё раз, не страшно */ }
     lastFocus = document.activeElement;
     behind.forEach((el) => { el.inert = true; });
+    // Нити рисуются на холсте поверх всей страницы — и поверх окна тоже. Пока окно открыто, выключаем их совсем.
+    if (nameButton.__sab) nameButton.__sab.destroy();
     offerBox.hidden = false;
     $("[data-offer-cta]").focus({ preventScroll: true });
     haptic.tap();
@@ -566,6 +570,8 @@
   function closeOffer() {
     if (offerBox.hidden || offerBox.classList.contains("is-closing")) return;
     behind.forEach((el) => { el.inert = false; });
+    threadsPaused = false;
+    mountThreads();                                   // окно закрыто — нити снова работают
     const finish = () => { offerBox.hidden = true; offerBox.classList.remove("is-closing"); };
     if (calm.matches) finish();
     else { offerBox.classList.add("is-closing"); setTimeout(finish, 230); }
