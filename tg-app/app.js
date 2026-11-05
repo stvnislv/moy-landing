@@ -260,6 +260,8 @@
       </div>
     </article>`).join("");
   $("[data-services-note]").innerHTML = nbsp(data.servicesNote);
+  if (data.discount) $("[data-discount]").textContent = data.discount;
+  else $("[data-discount]").remove();
 
   // Портфолио: работы из data.js и в конце — приглашение.
   const previews = {
