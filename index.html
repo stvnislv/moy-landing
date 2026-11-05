@@ -1040,6 +1040,38 @@ body { font-size: var(--step-0); }
 }
 .note { margin-top: 1.25rem; font-size: var(--step--1); color: var(--muted); }
 
+/* Плашка «Скидка» над услугами: то же объёмное стекло, что у кнопок и шапки (класс candy),
+   слева — тёплая точка, как свет из щели. Не кнопка — просто надпись. */
+.discount-badge {
+  justify-self: start;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: fit-content;
+  min-height: 2.5rem;
+  margin-top: 2.5rem;
+  padding: 0 1.125rem 0 0.875rem;
+  border-radius: 999px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.discount-badge::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: #ffb45a;
+  box-shadow: 0 0 8px rgba(255, 170, 80, 0.9);
+}
+.discount-badge + .services { margin-top: 1.25rem; }
+@media (min-width: 1024px) {
+  .split > .discount-badge { margin-top: 0; }
+  /* заголовок раздела занимает две строки сетки — плашку и список, иначе под плашкой пустота высотой с заголовок */
+  .split:has(> .discount-badge) > .section-title { grid-row: span 2; }
+  .split > .discount-badge + .services { margin-top: 1.5rem; }
+}
+
 /* Работы */
 .works { margin-top: 2.5rem; display: grid; gap: 1rem; }
 .work-feature { padding: 0; overflow: hidden; display: grid; }
@@ -1321,6 +1353,7 @@ html.night .sab-btn { --sab-strand: #d6d2cb; --sab-strand-hl: rgba(0,0,0,.22); }
 
     <section id="services" class="section split reveal" aria-labelledby="services-title">
       <h2 id="services-title" class="section-title">Что я делаю</h2>
+      <p class="discount-badge candy" data-discount></p>
       <ul class="services" data-services></ul>
       <p class="note muted">Точную цену назову, когда узнаю задачу.</p>
       <div class="payment-block">
@@ -1433,6 +1466,9 @@ const site = {
       priceFrom: 40000,
     },
   ],
+
+  // Стеклянная плашка над списком услуг. Пустая строка — плашки нет.
+  discount: "Скидка 5%",
 
   // Работы. Новый проект: { title, description, image: "works/имя.jpg", url: "https://…" }.
   // Пока работ меньше трёх, остальные места занимают карточки «Здесь будет ваш проект».
@@ -1567,6 +1603,9 @@ const about = document.querySelector("[data-about]");
 site.about.forEach((text, i) => about.append(el("p", i === 0 ? "about-lead" : "", text)));
 
 // Что я делаю
+const discountBadge = document.querySelector("[data-discount]");
+if (site.discount) discountBadge.textContent = site.discount;
+else discountBadge.remove();
 const services = document.querySelector("[data-services]");
 for (const service of site.services) {
   const row = el("li", "service");
