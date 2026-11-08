@@ -63,6 +63,12 @@
         </div>
         <p class="home-lead" data-lead></p>
         <p class="home-text" data-text></p>
+        <!-- Понятные кнопки: в «Услуги», в «Портфолио» и «Поделиться с другом». Подписи — data.js. -->
+        <div class="home-actions">
+          <button type="button" class="btn-ghost tap" data-go="services" data-home-services></button>
+          <button type="button" class="btn-ghost tap" data-go="portfolio" data-home-portfolio></button>
+        </div>
+        <button type="button" class="link-btn tap" data-share></button>
       </div>
     </section>
 
@@ -72,6 +78,7 @@
       <p class="discount-badge" data-discount></p>
       <div class="cards" data-services></div>
       <p class="note" data-services-note></p>
+      <button type="button" class="btn-ghost tap next-btn" data-go="portfolio" data-services-next></button>
     </section>
 
     <!-- 3. Портфолио: первым — сайт. -->
@@ -115,6 +122,18 @@
       <span>Связаться</span>
     </button>
   </nav>
+
+  <!-- Приветствие: показывается один раз, при первом открытии (app.js, раздел «Приветствие»).
+       Обращение по имени из Telegram, три пункта, кнопка «Начать». Тексты — APP_DATA.welcome в data.js. -->
+  <div class="welcome" data-welcome hidden>
+    <section class="welcome-card" role="dialog" aria-modal="true" aria-labelledby="welcome-title" aria-describedby="welcome-text">
+      <div class="welcome-mark" aria-hidden="true">S</div>
+      <h2 class="welcome-title" id="welcome-title" data-welcome-title></h2>
+      <p class="welcome-text" id="welcome-text" data-welcome-text></p>
+      <ul class="welcome-list glass" data-welcome-list></ul>
+      <button type="button" class="btn-main tap" data-welcome-start></button>
+    </section>
+  </div>
 
   <!-- Оффер: показывается один раз, при первом открытии (app.js, раздел «Оффер»).
        Тексты и ссылка — APP_DATA.offer в data.js. -->

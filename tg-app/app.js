@@ -147,7 +147,34 @@
     mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m4 7 8 6 8-6"/></svg>',
     open: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 5h5v5"/><path d="M19 5 10 14"/><path d="M18 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h4"/></svg>',
     chevron: '<svg class="row-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>',
+    share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4"/><path d="m7.5 8.5 4.5-4.5 4.5 4.5"/><path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>',
+    // Те же значки, что в нижнем меню.
+    services: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="m12 4 8.5 4.5L12 13 3.5 8.5 12 4Z"/><path d="m3.5 12.5 8.5 4.5 8.5-4.5"/><path d="m3.5 16.5 8.5 4.5 8.5-4.5"/></svg>',
+    portfolio: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="7" width="17" height="13" rx="2.5"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7"/><path d="M3.5 12.5h17"/></svg>',
   };
+
+  // «Поделиться с другом»: ссылка на бота. В Telegram открывается выбор чата (t.me/share/url) —
+  // человек выбирает друга, и уходит сообщение со ссылкой и подписью из data.share.text.
+  // Вне Telegram — системное «Поделиться» телефона, а если его нет — ссылка копируется.
+  const botUrl = `https://t.me/${data.bot}`;
+  async function shareBot() {
+    const text = data.share.text;
+    if (inTelegram) {
+      tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(botUrl)}&text=${encodeURIComponent(text)}`);
+      return;
+    }
+    if (navigator.share) {
+      try { await navigator.share({ title: data.name, text, url: botUrl }); } catch { /* человек передумал */ }
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(botUrl);
+      haptic.success();
+      showToast(data.share.copied);
+    } catch {
+      showToast(botUrl);
+    }
+  }
 
   // Щель на главной: где на картинке hero-bg.jpg лежит линия (доли ширины и высоты картинки) —
   // те же числа, что SLIT на сайте. Картинка растянута по cover и стоит по центру, поэтому
@@ -245,6 +272,9 @@
   liteListeners.push(mountThreads);
   $("[data-lead]").innerHTML = nbsp(data.home.lead);
   $("[data-text]").innerHTML = nbsp(data.home.text);
+  $("[data-home-services]").innerHTML = `${icons.services}<span>${esc(data.home.servicesButton)}</span>`;
+  $("[data-home-portfolio]").innerHTML = `${icons.portfolio}<span>${esc(data.home.portfolioButton)}</span>`;
+  $("[data-share]").innerHTML = `${icons.share}<span>${esc(data.share.button)}</span>`;
 
   // Услуги: карточка — название, срок, описание, цена «от» и кнопка «Обсудить».
   $("[data-services]").innerHTML = data.services.map((s, i) => `
@@ -260,6 +290,7 @@
       </div>
     </article>`).join("");
   $("[data-services-note]").innerHTML = nbsp(data.servicesNote);
+  $("[data-services-next]").innerHTML = `${icons.portfolio}<span>${esc(data.servicesNext)}</span>`;
   if (data.discount) $("[data-discount]").textContent = data.discount;
   else $("[data-discount]").remove();
 
@@ -291,6 +322,7 @@
     { action: "telegram", icon: icons.telegram, title: "Telegram", sub: `@${data.telegram}` },
     { action: "instagram", icon: icons.instagram, title: "Instagram", sub: `@${data.instagram}` },
     { action: "email", icon: icons.mail, title: "Почта", sub: data.email },
+    { action: "share", icon: icons.share, title: data.share.button, sub: data.share.hint },
   ];
   $("[data-contact-list]").innerHTML = rows.map((r) => `
     <li><button type="button" class="row tap" data-contact="${r.action}">
@@ -314,7 +346,11 @@
     const target = event.target.closest("button");
     if (!target) return;
     if (target.dataset.tab || target === themeToggle) return;   // меню и переключатель темы — свои обработчики
+    // Кнопки-переходы («Услуги и цены», «Мои работы», «Посмотреть работы») — как кнопки меню.
+    if (target.dataset.go) { haptic.select(); show(target.dataset.go); return; }
     haptic.tap();
+    // Поделиться — сразу: системное «Поделиться» и буфер обмена браузер разрешает только в момент нажатия.
+    if (target.hasAttribute("data-share") || target.dataset.contact === "share") { shareBot(); return; }
     // Почта копируется сразу: браузер разрешает доступ к буферу обмена только в момент нажатия.
     if (target.dataset.contact === "email") { copyEmail(); return; }
     // Ссылки открываются с паузой 0,26 с — чтобы успело мелькнуть мерцание кнопки.
@@ -587,11 +623,60 @@
     }, calm.matches ? 0 : 200);
   });
   offerBox.querySelectorAll("[data-offer-close]").forEach((el) => el.addEventListener("click", closeOffer));
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeOffer(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (!welcomeBox.hidden) closeWelcome();
+    else closeOffer();
+  });
 
   let offerSeen = false;
   try { offerSeen = localStorage.getItem(OFFER_KEY) === "1"; } catch { /* нет хранилища — считаем, что не видел */ }
   if (new URLSearchParams(location.search).get("offer") === "1") offerSeen = false;
   // Окно — после того как приложение показалось и приветствие загорелось (~1,4 с), а не поверх пустого экрана.
-  if (!offerSeen) setTimeout(openOffer, calm.matches ? 300 : 1400);
+  // Если сначала показано окно «Привет», оффер ждёт, пока его закроют кнопкой «Начать».
+  const scheduleOffer = () => { if (!offerSeen) setTimeout(openOffer, calm.matches ? 300 : 1400); };
+
+  // ============================================================
+  // Приветствие: экран при первом открытии, один раз
+  // ============================================================
+  // «Привет, <имя из Telegram>!», что здесь можно сделать и кнопка «Начать». Тексты — data.welcome.
+  // Что показано, запоминается в localStorage (ключ welcomeSeen). Для проверки: адрес с ?welcome=1 показывает всегда.
+  const welcome = data.welcome;
+  const welcomeBox = $("[data-welcome]");
+  const WELCOME_KEY = "welcomeSeen";
+  const firstName = user && user.first_name ? user.first_name.trim() : "";
+  $("[data-welcome-title]").textContent = firstName ? `${welcome.hello}, ${firstName}!` : `${welcome.hello}!`;
+  $("[data-welcome-text]").innerHTML = nbsp(welcome.text);
+  $("[data-welcome-list]").innerHTML = welcome.points
+    .map((p) => `<li><span class="row-icon">${icons[p.icon] || ""}</span><span>${nbsp(p.text)}</span></li>`)
+    .join("");
+  $("[data-welcome-start]").innerHTML = `<span>${esc(welcome.button)}</span>`;
+
+  function openWelcome() {
+    try { localStorage.setItem(WELCOME_KEY, "1"); } catch { /* хранилище недоступно — покажется ещё раз, не страшно */ }
+    behind.forEach((el) => { el.inert = true; });
+    if (nameButton.__sab) nameButton.__sab.destroy();   // нити рисуются поверх всего — пока окно открыто, их нет
+    welcomeBox.hidden = false;
+    $("[data-welcome-start]").focus({ preventScroll: true });
+  }
+  function closeWelcome() {
+    if (welcomeBox.hidden || welcomeBox.classList.contains("is-closing")) return;
+    behind.forEach((el) => { el.inert = false; });
+    threadsPaused = false;
+    mountThreads();
+    if (current === "home") playHome();               // приветствие на «Главной» загорается уже на виду
+    const finish = () => { welcomeBox.hidden = true; welcomeBox.classList.remove("is-closing"); };
+    if (calm.matches) finish();
+    else { welcomeBox.classList.add("is-closing"); setTimeout(finish, 320); }
+    scheduleOffer();
+  }
+  $("[data-welcome-start]").addEventListener("click", () => {
+    setTimeout(closeWelcome, calm.matches ? 0 : 160);  // мерцание кнопки успевает мелькнуть
+  });
+
+  let welcomeSeen = false;
+  try { welcomeSeen = localStorage.getItem(WELCOME_KEY) === "1"; } catch { /* нет хранилища — считаем, что не видел */ }
+  if (new URLSearchParams(location.search).get("welcome") === "1") welcomeSeen = false;
+  if (welcomeSeen) scheduleOffer();
+  else openWelcome();
 })();

@@ -42,6 +42,7 @@ Node.js стоит в `~/.local/node`, а не в системе. Перед к�
 - `npm run build`: production-сборка, включая проверку типов
 - `npm run typecheck`: только проверка типов
 - `npm test`: тесты в папке серверных функций
+- `node scripts/setup-telegram-bot.mjs`: описание, короткое описание и команды бота @stvnislv_bot через Bot API (нужен `TELEGRAM_BOT_TOKEN` в `.env`; `--check` — только показать текущие). Токен не выводит.
 
 Линтера нет. Платёжные функции локально требуют Netlify Dev и тестовых переменных окружения.
 

@@ -1195,3 +1195,149 @@ html.night .offer-list { background: rgba(255, 255, 255, 0.05); }
   .offer-cta { margin-top: 14px; min-height: 48px; }
   .offer-skip { margin-top: 2px; }
 }
+
+/* ---------- Кнопки на «Главной» и под услугами ----------
+   Две стеклянные кнопки в ряд («Услуги и цены», «Мои работы») и под ними тихая ссылка
+   «Поделиться с другом». Появляются вместе с текстом под сценой. */
+.home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: clamp(16px, 2.6cqh, 24px);
+}
+.link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  margin-top: 6px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.link-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+.link-btn:active { background: rgba(255, 180, 90, 0.14); }
+.link-btn { transition: color 0.3s ease, text-shadow 0.3s ease, transform 160ms var(--ease), background-color 160ms ease; }
+@media (hover: hover) { .link-btn:hover { color: var(--lit); text-shadow: 0 0 12px var(--lit-glow); } }
+.link-btn:active { color: var(--lit); }
+.link-btn.flicker { animation: flicker 0.48s linear both; }
+@media (prefers-reduced-motion: no-preference) {
+  .home.play :is(.home-actions, .link-btn) { animation: settle 1s cubic-bezier(0.22, 1, 0.36, 1) 1.35s backwards; }
+}
+/* Узкие телефоны (iPhone SE): обе кнопки в одну строку — меньше отступы, без значков. */
+@container (max-width: 359px) {
+  .home-actions { gap: 8px; }
+  .home-actions .btn-ghost { padding: 0 16px; font-size: 14px; }
+  .home-actions .btn-ghost svg { display: none; }
+}
+/* Невысокие экраны: кнопки ближе к тексту. */
+@container (max-height: 620px) {
+  .home-actions { margin-top: 12px; }
+  .link-btn { margin-top: 2px; min-height: 40px; }
+}
+/* «Посмотреть работы» под услугами. */
+.next-btn { margin: 16px 0 0; }
+
+/* ---------- Приветствие: экран при первом открытии ----------
+   Закрывает приложение целиком, фон — тот же тёплый светлый (ночью — титан) с пятном света сверху.
+   По центру: знак «S» на чёрном лаке, «Привет, имя!», пара слов обо мне, стеклянный список
+   из трёх пунктов и чёрная кнопка «Начать». Закрытие — экран гаснет и чуть приподнимается. */
+.welcome {
+  position: absolute;
+  inset: 0;
+  z-index: 55;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: calc(24px + var(--safe-top)) 16px calc(24px + var(--safe-bottom));
+  background:
+    radial-gradient(70% 45% at 50% 0%, rgba(255, 196, 120, 0.38), rgba(255, 196, 120, 0) 70%),
+    var(--bg);
+}
+html.night .welcome {
+  background:
+    radial-gradient(70% 45% at 50% 0%, rgba(255, 170, 80, 0.16), rgba(255, 170, 80, 0) 70%),
+    var(--bg);
+}
+.welcome[hidden] { display: none; }
+.welcome-card {
+  width: 100%;
+  max-width: 400px;
+  margin: auto;                  /* по центру, если помещается; иначе — прокрутка */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.welcome-mark {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-family: var(--display);
+  font-size: 32px;
+  font-weight: 500;
+  color: #f3f3f1;
+  background: linear-gradient(180deg, #2b2b2e 0%, #0d0d0e 45%, #050505 75%, #161618 100%);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.38),
+    0 2px 3px rgba(25, 20, 15, 0.35),
+    0 16px 34px -6px rgba(255, 170, 80, 0.6);       /* тёплое свечение снизу */
+}
+.welcome-title {
+  margin-top: 22px;
+  font-family: var(--display);
+  font-size: clamp(26px, 8vw, 32px);
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+  overflow-wrap: anywhere;       /* длинное имя не вылезет за экран */
+}
+.welcome-text {
+  margin-top: 12px;
+  max-width: 24em;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--muted);
+  text-wrap: pretty;
+}
+.welcome-list {
+  width: 100%;
+  margin: 22px 0 24px;
+  padding: 4px 16px;
+  border-radius: var(--radius);
+  text-align: left;
+}
+.welcome-list li {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+  font-size: 16px;
+  line-height: 1.4;
+}
+.welcome-list li + li { border-top: 1px solid var(--hair); }
+@media (prefers-reduced-motion: no-preference) {
+  .welcome:not([hidden]) .welcome-card > * { animation: settle 0.8s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+  .welcome:not([hidden]) .welcome-title { animation-delay: 0.08s; }
+  .welcome:not([hidden]) .welcome-text { animation-delay: 0.16s; }
+  .welcome:not([hidden]) .welcome-list { animation-delay: 0.24s; }
+  .welcome:not([hidden]) .btn-main { animation-delay: 0.34s; }
+  .welcome.is-closing { animation: welcome-out 0.32s ease-in both; }
+}
+@keyframes welcome-out { to { opacity: 0; transform: translateY(-12px); } }
+html.lite .welcome-list { -webkit-backdrop-filter: none; backdrop-filter: none; }
+/* Невысокие экраны: компактнее, чтобы «Начать» была видна без прокрутки. */
+@media (max-height: 640px) {
+  .welcome-mark { width: 56px; height: 56px; font-size: 25px; }
+  .welcome-title { margin-top: 14px; font-size: 25px; }
+  .welcome-text { margin-top: 8px; font-size: 15px; line-height: 1.4; }
+  .welcome-list { margin: 14px 0 16px; }
+  .welcome-list li { padding: 8px 0; font-size: 15px; }
+}
