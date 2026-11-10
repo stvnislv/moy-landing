@@ -12,8 +12,8 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-// Адрес Mini App, который открывает кнопка «Открыть приложение».
-const APP_URL = "https://stvnislv.netlify.app/tg-app/";
+// Адрес Mini App, который открывает кнопка «Открыть приложение». Тот же, что у кнопки меню бота в @BotFather.
+const APP_URL = "https://stvnislv-app.netlify.app/";
 const AUTHOR = "@stvnislvvv";
 
 const appButton = { inline_keyboard: [[{ text: "Открыть приложение", web_app: { url: APP_URL } }]] };

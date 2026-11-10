@@ -1626,6 +1626,9 @@ const paymentMessages = {
   email: "Укажите корректный адрес электронной почты.",
 };
 
+// Ошибка с понятным текстом для посетителя (от нашего сервера или проверки ссылки).
+class PaymentError extends Error {}
+
 function showPaymentStatus(message) {
   paymentStatus.textContent = message;
   paymentStatus.hidden = false;
@@ -1693,13 +1696,14 @@ paymentForm.addEventListener("submit", async (event) => {
       }),
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "Не удалось создать платёж.");
+    if (!response.ok) throw new PaymentError(result.error || "Не удалось создать платёж.");
 
     const confirmationUrl = new URL(result.confirmationUrl);
-    if (confirmationUrl.protocol !== "https:") throw new Error("ЮKassa вернула некорректную ссылку.");
+    if (confirmationUrl.protocol !== "https:") throw new PaymentError("ЮKassa вернула некорректную ссылку.");
     window.location.assign(confirmationUrl.href);
   } catch (error) {
-    showPaymentStatus(error instanceof Error ? error.message : "Не удалось создать платёж.");
+    // Свои сообщения показываем как есть; системные (нет сети, ответ не JSON) — общим текстом по-русски.
+    showPaymentStatus(error instanceof PaymentError ? error.message : "Не удалось связаться с сервером оплаты. Попробуйте позже.");
     paymentButton.disabled = false;
     paymentButton.textContent = "Оплатить согласованную услугу";
   }
