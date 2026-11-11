@@ -171,3 +171,52 @@ export async function notifyOwner(lead, { telegram, ownerId, services, env = pro
     current ? { ...current, ownerMessageId: message.message_id, notified: true } : undefined);
   return true;
 }
+
+/** Найти заявку по id. */
+export async function getLead(id, env = process.env) {
+  const leads = await openStore("leads", env);
+  return (await leads.get(`lead/${id}`))?.value ?? null;
+}
+
+/** Сменить статус заявки. Возвращает обновлённую заявку или null, если её нет. */
+export async function setLeadStatus(id, status, { now = new Date(), env = process.env } = {}) {
+  if (!Object.hasOwn(STATUSES, status)) throw new RequestValidationError("Неизвестный статус.");
+  const leads = await openStore("leads", env);
+  const { value: lead } = await updateJSON(leads, `lead/${id}`, (current) => {
+    if (!current) return undefined;
+    if (current.status === status) return undefined;   // уже такой — ничего не меняем
+    return {
+      ...current,
+      status,
+      updatedAt: now.toISOString(),
+      doneAt: status === "done" ? current.doneAt ?? now.toISOString() : null,
+    };
+  });
+  if (lead) await syncIndex(leads, lead);
+  return lead;
+}
+
+/**
+ * Клиент с сайта нажал «Получить ответ в Telegram» (/start l_<token>): привязать его чат к заявке,
+ * чтобы владелец мог отвечать через бота. Возвращает заявку или null, если ссылка неверная.
+ */
+export async function linkChatToLead(token, from, chatId, { now = new Date(), env = process.env } = {}) {
+  if (typeof token !== "string" || !/^[A-Za-z0-9_-]{22}$/.test(token)) return null;
+  const leads = await openStore("leads", env);
+  const link = (await leads.get(`link/${token}`))?.value;
+  if (!link) return null;
+  const { value: lead } = await updateJSON(leads, `lead/${link.leadId}`, (current) => current && {
+    ...current,
+    tg: {
+      userId: from.id,
+      chatId,
+      username: typeof from.username === "string" ? from.username : "",
+      firstName: typeof from.first_name === "string" ? from.first_name : "",
+    },
+    canMessage: true,
+    updatedAt: now.toISOString(),
+  });
+  if (!lead) return null;
+  await leads.set(`tg-chat/${chatId}`, { leadId: lead.id });
+  return lead;
+}

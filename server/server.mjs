@@ -13,6 +13,7 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createLeadHandler } from "./handlers/leads.mjs";
+import { telegramWebhookHandler } from "./handlers/telegram.mjs";
 import { jsonResponse } from "./lib/http.mjs";
 
 const MAX_BODY_BYTES = 64 * 1024;
@@ -20,6 +21,7 @@ const MAX_BODY_BYTES = 64 * 1024;
 /** Маршруты API: путь → обработчик (request, { ip, env }) → Response. */
 export const routes = {
   "/api/leads": createLeadHandler,
+  "/api/telegram": telegramWebhookHandler,
   "/api/health": async () => jsonResponse({ ok: true }),
 };
 

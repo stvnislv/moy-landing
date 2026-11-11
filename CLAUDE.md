@@ -24,7 +24,9 @@
 - Логика — в `server/`: `handlers/` — обработчики `(Request, { ip, env }) → Response`; `lib/` — `http` (ответы, CORS), `store` — **всё хранилище только через него** (драйверы `supabase` — основной, `file`, `blobs`, `memory` — тесты), `auth` (Telegram initData, владелец — `OWNER_TELEGRAM_ID`), `validate`, `telegram` (Bot API), `leads`, `ratelimit`, `content`.
 - `netlify/functions/<имя>.mjs` — тонкая обёртка над обработчиком с `export const config = { path: "/api/…" }`.
 - Supabase: проект `isbwhkbliietwvgpofip` (East US, Ohio). Только секретный ключ на сервере (`SUPABASE_SECRET_KEY`), без `@supabase/supabase-js` — REST через `fetch`. Публичный ключ не используется, в браузер Supabase не подключается.
-- Сделано: этап 1 и сервер этапа 2 (`POST /api/leads`). Формы на сайте и в Mini App — следующий шаг.
+- Сделано: этап 1, этап 2 (`POST /api/leads`, формы на сайте и в Mini App, `privacy.html` — черновик), из этапа 3 — `POST /api/telegram` (кнопки статуса под уведомлением, `/start`, `/help`, `/contact`, `/start l_<токен>`).
+- Бот: пока webhook не подключён, на команды отвечает `bot/bot.mjs` на Маке, а кнопки статуса не работают. После публикации — `node scripts/setup-telegram-bot.mjs --webhook` (бот переезжает на сервер, `bot/bot.mjs` больше не нужен); вернуть — `--polling`.
+- Переменные Netlify для функций: `STORAGE_DRIVER=supabase`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `TELEGRAM_BOT_TOKEN`, `OWNER_TELEGRAM_ID`, `TELEGRAM_WEBHOOK_SECRET`, `IP_HASH_SALT`, `ALLOWED_ORIGINS`. Значения — в локальном `.env`.
 - Проверка на Mac: в `.env` задать `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `ALLOWED_ORIGINS=http://localhost:3000`, `IP_HASH_SALT`, `STATIC_ROOT=.`; затем `npm run server` и открыть http://localhost:3000/. Заявка запишется в Supabase и придёт владельцу в Telegram по-настоящему.
 
 ## tg-app/ — Telegram Mini App
@@ -53,7 +55,7 @@ Node.js стоит в `~/.local/node`, а не в системе. Перед к�
 - `npm run typecheck`: только проверка типов
 - `npm test`: все тесты (`server/` и `netlify/functions/`), без сети
 - `npm run server`: API-сервер заявок с настройками из `.env` (см. раздел «Бэкенд заявок»)
-- `node scripts/setup-telegram-bot.mjs`: описание, короткое описание и команды бота @stvnislv_bot через Bot API (нужен `TELEGRAM_BOT_TOKEN` в `.env`; `--check` — только показать текущие). Токен не выводит.
+- `node scripts/setup-telegram-bot.mjs`: описание, короткое описание и команды бота @stvnislv_bot через Bot API (нужен `TELEGRAM_BOT_TOKEN` в `.env`; `--check` — только показать текущие и состояние webhook; `--webhook` — подключить бота к `/api/telegram` на сайте; `--polling` — отключить webhook). Токен не выводит.
 - `node bot/bot.mjs`: бот @stvnislv_bot на Маке (long polling, без сервера): отвечает на /start, /help, /contact; кнопка открывает Mini App по `APP_URL` в начале файла. Остановка — Ctrl+C. Работает, только пока открыт Терминал и Мак не спит. Без внешних библиотек.
 
 Линтера нет. Платёжные функции локально требуют Netlify Dev и тестовых переменных окружения.
