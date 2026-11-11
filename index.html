@@ -1097,9 +1097,10 @@ body { font-size: var(--step-0); }
 }
 
 /* Работы */
-.works { margin-top: 2.5rem; display: grid; gap: 1rem; }
-.work-feature { padding: 0; overflow: hidden; display: grid; }
-.work-text { padding: 1.75rem; }
+.works { margin-top: 2.5rem; display: grid; gap: 3rem; }
+/* Карточка работы без рамки: окно скриншота одной высоты у всех и текст. */
+.work-feature { display: grid; gap: 1.25rem; }
+.work-text { padding: 0 0.25rem; min-height: 10.75rem; }   /* одна высота у всех карточек на телефоне */
 .work-feature h3 { font-size: var(--step-1); font-weight: 500; letter-spacing: -0.02em; }
 .work-feature .desc { margin-top: 0.5rem; color: var(--muted); max-width: 36ch; line-height: 1.6; }
 /* Миниатюра первого экрана: щель и тёплый треугольник света на тёмном титане. */
@@ -1134,10 +1135,11 @@ body { font-size: var(--step-0); }
   mask-image: linear-gradient(#000, transparent);
   filter: blur(8px);
 }
+.work-preview { border-radius: var(--radius-card); overflow: hidden; }
 @media (min-width: 768px) {
-  .work-feature { grid-template-columns: 1.1fr 1fr; }
+  .work-feature { grid-template-columns: minmax(0, 0.75fr) minmax(0, 1.25fr); gap: 2.25rem; align-items: center; }
   .work-preview { order: 2; min-height: 15rem; }
-  .work-text { padding: 2.25rem; display: flex; flex-direction: column; justify-content: flex-end; }
+  .work-text { padding: 0; min-height: 0; }
 }
 /* Миниатюра «Mini App»: телефон с щелью и светом на экране. */
 .work-preview-app::before {
@@ -1184,47 +1186,64 @@ body { font-size: var(--step-0); }
   background: linear-gradient(180deg, #f2b46c, #d98a3d);
   box-shadow: 0 10px 24px -8px rgba(255, 170, 80, 0.6);
 }
-/* Скриншот работы: окно с картинкой страницы целиком. Наведение (или касание на телефоне) — класс is-scrolling:
-   картинка медленно едет вверх на --shift за --dur (их считает скрипт); без класса — плавно возвращается. */
+/* Скриншот работы: окно одной высоты у всех карточек, тёплый фон, страница — по центру с отступом сверху.
+   Сайт — пошире, Mini App и бот (frame: "phone") — колонкой, как экран телефона.
+   Наведение (или касание на телефоне) — класс is-scrolling: картинка медленно едет вверх на --shift за --dur
+   (их считает скрипт); без класса — плавно возвращается. */
 .work-shot {
   position: relative;
-  min-height: 17rem;
+  height: 21rem;
   overflow: hidden;
-  background: #f3f3f1;
+  border-radius: var(--radius-card);
+  background: radial-gradient(80% 60% at 50% 0%, rgba(255, 196, 120, 0.35), transparent 70%), linear-gradient(#ebe8e3, #dedad3);
 }
 .work-shot img {
   position: absolute;
-  top: 0;
-  left: 0;
+  top: 1.25rem;
+  left: 50%;
   display: block;
-  width: 100%;
+  width: 88%;
   height: auto;
+  margin-left: -44%;
+  border-radius: 0.75rem 0.75rem 0 0;
+  box-shadow: 0 18px 40px -12px rgba(25, 20, 15, 0.35);
   transform: translate3d(0, 0, 0);
   transition: transform 1.4s cubic-bezier(0.22, 1, 0.36, 1);
   will-change: transform;
 }
-.work.is-scrolling .work-shot img {
-  transform: translate3d(0, var(--shift, 0px), 0);
-  transition: transform var(--dur, 8s) cubic-bezier(0.45, 0, 0.55, 1);
-}
-/* Узкий скриншот (Mini App, бот) — колонкой по центру, как экран телефона, на тёплом фоне. */
-.work-shot-phone {
-  background: radial-gradient(80% 60% at 50% 0%, rgba(255, 196, 120, 0.35), transparent 70%), linear-gradient(#ebe8e3, #dedad3);
-}
 .work-shot-phone img {
-  left: 50%;
   width: min(15.5rem, 68%);
   margin-left: calc(min(15.5rem, 68%) / -2);
-  top: 1.25rem;
   border-radius: 1rem 1rem 0 0;
-  box-shadow: 0 0 0 1px rgba(25, 25, 27, 0.08), 0 18px 40px -12px rgba(25, 20, 15, 0.35);
 }
-.work.is-scrolling .work-shot-phone img { transform: translate3d(0, calc(var(--shift, 0px) - 1.25rem), 0); }
-html.night .work-shot { background: #2a2826; }
-html.night .work-shot-phone { background: radial-gradient(80% 60% at 50% 0%, rgba(255, 170, 80, 0.18), transparent 70%), linear-gradient(#2c2a27, #1f1e1c); }
-@media (hover: none) { .work:has(.work-shot) { cursor: pointer; } }
+.work.is-scrolling .work-shot img {
+  transform: translate3d(0, calc(var(--shift, 0px) - 1.25rem), 0);
+  transition: transform var(--dur, 8s) cubic-bezier(0.45, 0, 0.55, 1);
+}
+html.night .work-shot { background: radial-gradient(80% 60% at 50% 0%, rgba(255, 170, 80, 0.18), transparent 70%), linear-gradient(#2c2a27, #1f1e1c); }
+/* Телефон: подсказка внизу скриншота — «Нажмите, чтобы пролистать», потом «Нажмите ещё раз, чтобы открыть». */
+.work-shot::after { content: none; }
+@media (hover: none) {
+  .work:has(.work-shot) { cursor: pointer; }
+  .work-shot[data-hint]::after {
+    content: attr(data-hint);
+    position: absolute;
+    left: 50%;
+    bottom: 0.875rem;
+    translate: -50% 0;
+    padding: 0.375rem 0.875rem;
+    border-radius: 999px;
+    font-size: 0.8125rem;
+    white-space: nowrap;
+    color: #f3f3f1;
+    background: rgba(20, 18, 16, 0.62);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    pointer-events: none;
+  }
+}
 @media (min-width: 768px) {
-  .work-shot { order: 2; min-height: 19rem; }
+  .work-shot { order: 2; height: 20rem; }
 }
 .work-invite {
   display: flex;
@@ -1713,7 +1732,7 @@ const site = {
 
   hero: {
     title: "Сайты, приложения и ИИ‑агенты",
-    subtitle: "Цифровой мастер для экспертов и небольших компаний",
+    subtitle: "Делаю сайты и Telegram-ботов для экспертов и бизнеса. Цену и срок называю до начала работы",
   },
 
   about: [
@@ -1785,7 +1804,7 @@ const site = {
   ],
 
   steps: [
-    { title: "Пишете в Telegram", text: "Рассказываете задачу своими словами." },
+    { title: "Пишете в Telegram или оставляете заявку", text: "Рассказываете задачу своими словами." },
     { title: "Называю цену и срок", text: "До начала работы, без сюрпризов." },
     { title: "Делаю и показываю", text: "Вы видите черновик и вносите правки." },
     { title: "Сдаю готовое", text: "Помогаю запустить и объясняю, как пользоваться." },
@@ -2055,7 +2074,7 @@ if (!site.payment) {
 // Работы
 const works = document.querySelector("[data-works]");
 for (const work of site.portfolio) {
-  const card = el("li", "card work work-feature glass");
+  const card = el("li", "work work-feature");   // без рамки: окно скриншота и текст рядом
   const text = el("div", "work-text");
   if (!work.image) {
     // Пока нет скриншота — нарисованная миниатюра: щель и свет, телефон или переписка.
@@ -2102,6 +2121,7 @@ for (const work of site.portfolio) {
 // Если в системе включено «уменьшение движения», скриншот стоит на месте.
 {
   const canHover = window.matchMedia("(hover: hover) and (pointer: fine)");
+  const still = window.matchMedia("(prefers-reduced-motion: reduce)");   // «уменьшить движение» — скриншоты стоят
   const cards = [...document.querySelectorAll(".work")].filter((card) => card.querySelector(".work-shot img"));
 
   // Насколько сдвинуть картинку, чтобы показался её низ, и сколько это ехать (~170 px в секунду, от 3 до 14 с).
@@ -2112,16 +2132,24 @@ for (const work of site.portfolio) {
     card.style.setProperty("--shift", `${shift}px`);
     card.style.setProperty("--dur", `${Math.min(14, Math.max(3, -shift / 170)).toFixed(1)}s`);
   }
+  // Подсказка на телефоне (видна только там, где нет наведения — стили .work-shot[data-hint]).
+  const HINT = "Нажмите, чтобы пролистать";
+  const hint = (card, text) => { card.querySelector(".work-shot").dataset.hint = text; };
   const scrollDown = (card) => {
-    if (calm.matches) return;
+    if (still.matches) return;
     measure(card);
     card.classList.add("is-scrolling");
+    hint(card, card.dataset.url ? "Нажмите ещё раз, чтобы открыть" : "Нажмите ещё раз, чтобы вернуться");
   };
-  const scrollUp = (card) => card.classList.remove("is-scrolling");
+  const scrollUp = (card) => {
+    card.classList.remove("is-scrolling");
+    hint(card, still.matches && card.dataset.url ? "Нажмите, чтобы открыть" : HINT);
+  };
 
   for (const card of cards) {
     const img = card.querySelector(".work-shot img");
     if (img.complete) measure(card); else img.addEventListener("load", () => measure(card), { once: true });
+    scrollUp(card);                                   // начальная подсказка
     card.addEventListener("mouseenter", () => canHover.matches && scrollDown(card));
     card.addEventListener("mouseleave", () => canHover.matches && scrollUp(card));
     // С клавиатуры: фокус на ссылке карточки тоже показывает страницу.
@@ -2129,7 +2157,7 @@ for (const work of site.portfolio) {
     card.addEventListener("focusout", () => scrollUp(card));
     card.addEventListener("click", (event) => {
       if (canHover.matches || event.target.closest("a")) return;   // мышь — только наведение; ссылка — открывается сама
-      if (!card.classList.contains("is-scrolling") && !calm.matches) {
+      if (!card.classList.contains("is-scrolling") && !still.matches) {
         cards.forEach((other) => other !== card && scrollUp(other));
         scrollDown(card);
       } else if (card.dataset.url) {

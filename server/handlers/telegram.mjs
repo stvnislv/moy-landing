@@ -36,7 +36,7 @@ const appButton = { inline_keyboard: [[{ text: "Открыть приложен�
 export const replies = {
   start: (name) => ({
     text:
-      `Привет${name ? `, ${escapeHtml(name)}` : ""}! Я Stvnislv, делаю сайты, лендинги и Telegram-приложения с помощью ИИ. ` +
+      `Привет${name ? `, ${escapeHtml(name)}` : ""}! Я Stvnislv, делаю сайты, лендинги и Telegram-приложения. ` +
       "Здесь можно посмотреть услуги и цены, мои работы и сразу написать мне.",
     reply_markup: appButton,
   }),
