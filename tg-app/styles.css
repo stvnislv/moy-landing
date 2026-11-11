@@ -1341,3 +1341,89 @@ html.lite .welcome-list { -webkit-backdrop-filter: none; backdrop-filter: none; 
   .welcome-list { margin: 14px 0 16px; }
   .welcome-list li { padding: 8px 0; font-size: 15px; }
 }
+
+/* ---------- Заявка: окно поверх приложения ----------
+   Как «Привет»: закрывает приложение целиком, тёплый фон с пятном света сверху. Внутри — форма в стекле.
+   Поля — в стиле стеклянных кнопок, по два в ряд на широком экране. */
+.lead-sheet {
+  position: absolute;
+  inset: 0;
+  z-index: 56;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: calc(16px + var(--safe-top)) 16px calc(24px + var(--safe-bottom));
+  background:
+    radial-gradient(70% 35% at 50% 0%, rgba(255, 196, 120, 0.3), rgba(255, 196, 120, 0) 70%),
+    var(--bg);
+}
+html.night .lead-sheet {
+  background:
+    radial-gradient(70% 35% at 50% 0%, rgba(255, 170, 80, 0.14), rgba(255, 170, 80, 0) 70%),
+    var(--bg);
+}
+.lead-sheet[hidden] { display: none; }
+.lead-card { width: 100%; max-width: 440px; margin: 0 auto; }
+.lead-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.lead-title { font-family: var(--display); font-size: 26px; font-weight: 400; letter-spacing: -0.03em; }
+.lead-close {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 14px;
+  color: var(--muted);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--hair);
+}
+.lead-text { margin-top: 8px; font-size: 15px; line-height: 1.5; color: var(--muted); text-wrap: pretty; }
+.lead-form { margin-top: 20px; display: grid; gap: 14px; }
+.lead-form[hidden] { display: none; }
+.lead-field { display: grid; gap: 6px; min-width: 0; }
+.lead-field > span { font-size: 14px; font-weight: 500; }
+.lead-field input,
+.lead-field select,
+.lead-field textarea {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 16px;
+  font: inherit;
+  font-size: 16px;                 /* 16px — иначе iPhone приближает страницу при вводе */
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: inset 0 0 0 1px rgba(25, 25, 27, 0.12), inset 0 1px 2px rgba(25, 25, 27, 0.06);
+  transition: box-shadow 150ms;
+}
+.lead-field textarea { min-height: 104px; resize: vertical; line-height: 1.45; }
+.lead-field select {
+  padding-right: 38px;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.7) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235b5a57' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center / 18px;
+}
+.lead-field input:focus-visible,
+.lead-field select:focus-visible,
+.lead-field textarea:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--lit, #e3801f); }
+html.night .lead-field input,
+html.night .lead-field select,
+html.night .lead-field textarea { background-color: rgba(255, 255, 255, 0.07); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14); }
+html.night .lead-field select option { color: #19191b; }
+.lead-field ::placeholder { color: var(--muted); opacity: 0.8; }
+.lead-row { display: grid; gap: 14px; }
+@media (min-width: 400px) { .lead-row { grid-template-columns: 1fr 1fr; } }
+.lead-consent { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.45; }
+.lead-consent input { width: 20px; height: 20px; margin: 0; flex-shrink: 0; accent-color: #19191b; }
+html.night .lead-consent input { accent-color: #edebe7; }
+.link-inline { padding: 0; border: 0; background: none; font: inherit; color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.lead-error { font-size: 14px; line-height: 1.45; color: #b42318; }
+html.night .lead-error { color: #ff8a7a; }
+.lead-error[hidden] { display: none; }
+.lead-form .btn-main { margin-top: 4px; }
+.lead-form .btn-main:disabled { opacity: 0.7; }
+.lead-done { margin-top: 40px; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
+.lead-done[hidden] { display: none; }
+.lead-done-title { margin-top: 10px; font-family: var(--display); font-size: 22px; letter-spacing: -0.02em; }
+.lead-done-text { max-width: 22em; font-size: 15px; line-height: 1.5; color: var(--muted); }
+.lead-done .btn-ghost { margin-top: 12px; }
+.lead-open { width: 100%; margin-top: 10px; }
+/* Ловушка для ботов: вне экрана */
+.trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }

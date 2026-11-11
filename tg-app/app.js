@@ -451,7 +451,8 @@
     if (tab.dataset.tab !== current) haptic.select();
     show(tab.dataset.tab);
   }));
-  if (supports("6.1")) tg.BackButton.onClick(() => show("home"));
+  // Открыта заявка — «Назад» закрывает её; иначе — на «Главную».
+  if (supports("6.1")) tg.BackButton.onClick(() => (leadBox.hidden ? show("home") : closeLead()));
 
   // ============================================================
   // Свайпы: влево — следующий экран, вправо — предыдущий (в порядке кнопок меню)
@@ -635,6 +636,161 @@
   // Окно — после того как приложение показалось и приветствие загорелось (~1,4 с), а не поверх пустого экрана.
   // Если сначала показано окно «Привет», оффер ждёт, пока его закроют кнопкой «Начать».
   const scheduleOffer = () => { if (!offerSeen) setTimeout(openOffer, calm.matches ? 300 : 1400); };
+
+  // ============================================================
+  // Заявка: окно поверх приложения
+  // ============================================================
+  // Открывается кнопкой «Оставить заявку» на экране «Связаться». Заявка уходит на сервер (data.lead.apiUrl)
+  // и сразу приходит владельцу в Telegram. В Telegram к запросу прикладывается подписанная строка initData —
+  // по ней сервер узнаёт клиента, и владелец может ответить ему через бота.
+  const leadCfg = data.lead;
+  const leadBox = $("[data-lead-sheet]");
+  const leadForm = $("[data-lead-form]");
+  const leadFields = leadForm.elements;
+  const leadError = leadForm.querySelector(".lead-error");
+  const leadSubmit = $("[data-lead-submit]");
+  const leadDone = $("[data-lead-done]");
+  // Проверка на Mac (npm run server): запросы — на тот же адрес, что и страница.
+  const leadApi = ["localhost", "127.0.0.1"].includes(location.hostname) ? "/api/leads" : leadCfg.apiUrl;
+
+  $("[data-lead-open]").innerHTML = `${icons.mail}<span>${esc(leadCfg.button)}</span>`;
+  $("[data-lead-title]").textContent = leadCfg.title;
+  $("[data-lead-text]").innerHTML = nbsp(leadCfg.text);
+  leadBox.querySelectorAll("[data-lead-close]").forEach((b) => { b.textContent = leadCfg.close; });
+  leadSubmit.innerHTML = `<span>${esc(leadCfg.submit)}</span>`;
+  const leadOption = (value, label) => Object.assign(document.createElement("option"), { value, textContent: label });
+  leadFields.serviceId.append(leadOption("", "Выберите…"));
+  data.services.forEach((service) => leadFields.serviceId.append(leadOption(service.id, service.title)));
+  leadFields.serviceId.append(leadOption("other", leadCfg.otherService));
+  Object.entries(leadCfg.budgets).forEach(([v, label]) => leadFields.budget.append(leadOption(v, label)));
+  Object.entries(leadCfg.deadlines).forEach(([v, label]) => leadFields.deadline.append(leadOption(v, label)));
+  Object.entries(leadCfg.methods).forEach(([v, m]) => leadFields.contactMethod.append(leadOption(v, m.label)));
+
+  // В Telegram имя и ник подставляются сами; без ника ответить можно по Telegram ID, поле контакта необязательно.
+  const tgUsername = user && user.username ? `@${user.username}` : "";
+  if (user && user.first_name) leadFields.name.value = user.first_name.trim();
+  function updateLeadContact() {
+    const method = leadCfg.methods[leadFields.contactMethod.value];
+    leadFields.contact.type = method.type;
+    leadFields.contact.placeholder = method.placeholder;
+    leadFields.contact.autocomplete = method.autocomplete;
+    if (leadFields.contactMethod.value === "telegram" && inTelegram && !leadFields.contact.value) leadFields.contact.value = tgUsername;
+    leadFields.contact.setCustomValidity("");
+  }
+  leadFields.contactMethod.addEventListener("change", () => {
+    if (leadFields.contactMethod.value !== "telegram" && leadFields.contact.value === tgUsername) leadFields.contact.value = "";
+    updateLeadContact();
+  });
+  updateLeadContact();
+
+  // Те же правила, что на сервере (server/lib/leads.mjs).
+  const leadChecks = {
+    serviceId: () => (leadFields.serviceId.value ? "" : "Выберите, что нужно сделать."),
+    task: () => (leadFields.task.value.trim().length >= 3 ? "" : "Опишите задачу хотя бы парой слов."),
+    name: () => (leadFields.name.value.trim() ? "" : "Напишите, как вас зовут."),
+    contact: () => {
+      const value = leadFields.contact.value.trim();
+      const method = leadFields.contactMethod.value;
+      if (!value) return method === "telegram" && inTelegram ? "" : "Укажите, как с вами связаться.";
+      if (method === "telegram" && !/^@?[A-Za-z][A-Za-z0-9_]{4,31}$/.test(value)) return "Укажите ник в Telegram, например @username.";
+      if (method === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return "Укажите корректную почту.";
+      if (method === "phone") {
+        const digits = value.replace(/\D/g, "").length;
+        if (!/^\+?[\d\s()-]+$/.test(value) || digits < 7 || digits > 15) return "Укажите номер телефона, например +7 999 123-45-67.";
+      }
+      return "";
+    },
+    consent: () => (leadFields.consent.checked ? "" : "Нужно ваше согласие, иначе я не смогу принять заявку."),
+  };
+  Object.keys(leadChecks).forEach((name) => {
+    leadFields[name].addEventListener(["consent", "serviceId"].includes(name) ? "change" : "input", () => leadFields[name].setCustomValidity(""));
+  });
+
+  function openLead() {
+    lastFocus = document.activeElement;
+    behind.forEach((el) => { el.inert = true; });
+    threadsPaused = true;
+    if (nameButton.__sab) nameButton.__sab.destroy();   // нити рисуются поверх всего — пока окно открыто, их нет
+    leadError.hidden = true;
+    if (!leadDone.hidden) {                            // после отправленной заявки — снова пустая форма
+      leadDone.hidden = true;
+      leadForm.hidden = false;
+      leadForm.reset();
+      if (user && user.first_name) leadFields.name.value = user.first_name.trim();
+      updateLeadContact();
+    }
+    leadBox.hidden = false;
+    leadBox.scrollTop = 0;
+    if (supports("6.1")) tg.BackButton.show();
+    leadFields.serviceId.focus({ preventScroll: true });
+  }
+  function closeLead() {
+    if (leadBox.hidden) return;
+    leadBox.hidden = true;
+    behind.forEach((el) => { el.inert = false; });
+    threadsPaused = false;
+    mountThreads();
+    updateMenu();                                     // кнопка «Назад» — как было до окна
+    if (lastFocus && lastFocus.focus) lastFocus.focus({ preventScroll: true });
+  }
+  $("[data-lead-open]").addEventListener("click", () => setTimeout(openLead, calm.matches ? 0 : 160));
+  leadBox.querySelectorAll("[data-lead-close]").forEach((b) => b.addEventListener("click", closeLead));
+  $("[data-lead-privacy]").addEventListener("click", () => openLink(leadCfg.privacyUrl));
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeLead(); });
+
+  // Разрешить боту писать клиенту — чтобы владелец мог ответить на заявку через бота.
+  // Telegram сам спрашивает человека; если уже разрешено или версия старая — сразу дальше.
+  function askWriteAccess() {
+    if (!inTelegram || (user && user.allows_write_to_pm) || !supports("6.9")) return Promise.resolve(false);
+    return new Promise((resolve) => tg.requestWriteAccess((granted) => resolve(Boolean(granted))));
+  }
+
+  leadForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    leadError.hidden = true;
+    Object.entries(leadChecks).forEach(([name, check]) => leadFields[name].setCustomValidity(check()));
+    if (!leadForm.reportValidity()) return;
+
+    leadSubmit.disabled = true;
+    leadSubmit.innerHTML = `<span>${esc(leadCfg.sending)}</span>`;
+    try {
+      const writeAccess = await askWriteAccess();
+      const headers = { "Content-Type": "application/json" };
+      if (inTelegram) headers.Authorization = `tma ${tg.initData}`;
+      const body = {
+        serviceId: leadFields.serviceId.value,
+        task: leadFields.task.value.trim(),
+        budget: leadFields.budget.value,
+        deadline: leadFields.deadline.value,
+        name: leadFields.name.value.trim(),
+        contactMethod: leadFields.contactMethod.value,
+        contact: leadFields.contact.value.trim(),
+        consent: leadFields.consent.checked,
+        website: leadFields.website.value,
+      };
+      if (inTelegram) body.writeAccess = writeAccess;
+      const response = await fetch(leadApi, { method: "POST", headers, body: JSON.stringify(body) });
+      let result = {};
+      try { result = await response.json(); } catch { /* ответ не JSON — общее сообщение */ }
+      if (!response.ok) {
+        leadError.textContent = result.error || "Не получилось отправить заявку. Попробуйте ещё раз или напишите мне в Telegram.";
+        leadError.hidden = false;
+        return;
+      }
+      haptic.success();
+      leadForm.hidden = true;
+      $("[data-lead-done-title]").textContent = leadCfg.thanksTitle.replace("{number}", result.number);
+      $("[data-lead-done-text]").innerHTML = nbsp(inTelegram ? leadCfg.thanksText : leadCfg.thanksTextNoBot);
+      leadDone.hidden = false;
+      leadBox.scrollTop = 0;
+    } catch {
+      leadError.textContent = `Нет связи с сервером. Проверьте интернет или напишите мне в Telegram: @${data.telegram}.`;
+      leadError.hidden = false;
+    } finally {
+      leadSubmit.disabled = false;
+      leadSubmit.innerHTML = `<span>${esc(leadCfg.submit)}</span>`;
+    }
+  });
 
   // ============================================================
   // Приветствие: экран при первом открытии, один раз

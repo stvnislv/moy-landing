@@ -103,6 +103,25 @@ test("a Mini App lead uses the verified Telegram user and needs no contact", asy
   assert.match(telegram.sent[0].text, /Mini App/);
 });
 
+test("writeAccess from the Mini App marks the client as reachable; from the site it is ignored", async () => {
+  const initData = signInitData({
+    auth_date: String(Math.floor(NOW.getTime() / 1000) - 10),
+    user: JSON.stringify({ id: 777, first_name: "Ира", allows_write_to_pm: false }),
+  }, TOKEN);
+  const telegram = fakeTelegram();
+  const leads = await openStore("leads");
+  const tgBody = { ...validBody, contactMethod: "telegram", contact: "", writeAccess: true };
+  await createLeadHandler(post(tgBody, { headers: { Authorization: `tma ${initData}` } }), { ip: "1.1.1.1", env, telegram, now: NOW });
+  const fromApp = (await leads.get(`lead/${(await leads.get("index")).value[0].id}`)).value;
+  assert.equal(fromApp.canMessage, true);
+  assert.equal(fromApp.contact.value, "");          // ника нет — ответ по Telegram ID
+  assert.equal("writeAccess" in fromApp, false);
+
+  await createLeadHandler(post({ ...validBody, writeAccess: true }), { ip: "1.1.1.2", env, telegram, now: NOW });
+  const fromSite = (await leads.get(`lead/${(await leads.get("index")).value[0].id}`)).value;
+  assert.equal(fromSite.canMessage, false);
+});
+
 test("forged initData is rejected with 403", async () => {
   const forged = signInitData({ auth_date: String(Math.floor(NOW.getTime() / 1000)), user: JSON.stringify({ id: 1 }) },
     "999999999:AAforged-token-xxxxxxxxxxxxxxxxxxxxxxx");

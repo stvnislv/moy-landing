@@ -74,6 +74,8 @@ test("static files: only the site, privacy page and tg-app; no traversal, no sec
       assert.equal(home.headers.get("content-type"), "text/html; charset=utf-8");
       assert.equal(await home.text(), "<h1>site</h1>");
       assert.equal(await (await fetch(`${base}/tg-app/app.js`)).text(), "app()");
+      await writeFile(path.join(root, "tg-app", "index.html"), "<h1>app</h1>");
+      assert.equal(await (await fetch(`${base}/tg-app/`)).text(), "<h1>app</h1>");
       for (const blocked of ["/.env", "/package.json", "/tg-app/CLAUDE.md", "/tg-app/..%2F.env", "/%2e%2e/etc/passwd", "/tg-app/missing.js"]) {
         assert.equal((await fetch(`${base}${blocked}`)).status, 404, blocked);
       }

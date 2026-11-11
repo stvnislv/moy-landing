@@ -780,8 +780,37 @@ html.night .slit { background: #050505; box-shadow: 0 1px 0 rgba(255, 255, 255, 
 .field input:focus-visible,
 .field textarea:focus-visible { border-color: var(--accent); outline-offset: 0; }
 .form .btn { justify-self: start; margin-top: 0.25rem; }
-.form-done { margin-top: 1.5rem; font-size: 1.125rem; }
+.form-done { margin-top: 1.5rem; display: grid; gap: 0.5rem; justify-items: start; }
 .form-done[hidden] { display: none; }
+.form-done-title { font-size: 1.25rem; font-weight: 500; }
+.form-done .btn { margin-top: 0.75rem; }
+.form-done [hidden] { display: none; }
+/* Заявка: выпадающие списки как поля ввода, по два поля в ряд на широком экране */
+.field select {
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.75rem 2.5rem 0.75rem 1rem;
+  border: 1px solid rgb(29 30 32 / 0.14);
+  border-radius: 0.875rem;
+  background: rgb(255 255 255 / 0.75) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235f626a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 0.875rem center / 1.125rem;
+  color: inherit;
+  font: inherit;
+  appearance: none;
+  transition: border-color 150ms;
+}
+.field select:focus-visible { border-color: var(--accent); outline-offset: 0; }
+html.night .field select { background-color: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.16); }
+html.night .field select option { color: #1d1e20; }
+.field-row { display: grid; gap: 1rem; }
+@media (min-width: 560px) { .field-row { grid-template-columns: 1fr 1fr; } }
+.consent { display: flex; gap: 0.625rem; align-items: flex-start; font-size: 0.9375rem; line-height: 1.45; cursor: pointer; }
+.consent input { width: 1.125rem; height: 1.125rem; margin-top: 0.15rem; flex-shrink: 0; accent-color: var(--ink); }
+.consent a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.form-error { color: #b42318; font-size: 0.9375rem; }
+html.night .form-error { color: #ff8a7a; }
+.form-error[hidden] { display: none; }
+/* Ловушка для ботов: вне экрана, но не display:none — иначе некоторые боты её пропускают */
+.trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 .payment-block { margin-top: 2rem; }
 .payment-form { margin-top: 1rem; }
 .payment-form .btn { justify-self: start; margin-top: 0.25rem; }
@@ -1392,25 +1421,60 @@ html.night .sab-btn { --sab-strand: #d6d2cb; --sab-strand-hl: rgba(0,0,0,.22); }
           <a class="btn btn-primary" data-telegram-button>Написать в Telegram</a>
         </div>
         <p class="contact-alt">Или в <a data-instagram-link>Instagram</a> или на почту <a data-email-link></a></p>
-        <!-- Форма выключена: заявки из неё пока некуда отправлять (бриф, раздел 9, вопрос 3). -->
-        <button type="button" class="form-toggle" hidden aria-expanded="false" aria-controls="request-form">Нет Telegram? Оставьте заявку</button>
+        <!-- Заявка: уходит на сервер (POST /api/leads) и сразу приходит владельцу в Telegram. Поля заполняет скрипт из site.lead. -->
+        <button type="button" class="form-toggle" aria-expanded="false" aria-controls="lead-form">Или оставьте заявку здесь</button>
 
-        <form id="request-form" class="form" novalidate hidden>
+        <form id="lead-form" class="form lead-form" novalidate hidden>
           <div class="field">
-            <label for="f-name">Имя</label>
-            <input id="f-name" name="name" autocomplete="name" required>
+            <label for="lead-service">Что нужно</label>
+            <select id="lead-service" name="serviceId" required></select>
           </div>
           <div class="field">
-            <label for="f-contact">Как с вами связаться</label>
-            <input id="f-contact" name="contact" placeholder="Телефон, почта или ник" required>
+            <label for="lead-task">Опишите задачу</label>
+            <textarea id="lead-task" name="task" rows="4" maxlength="2000" required placeholder="Например: лендинг для студии йоги с записью на занятия"></textarea>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="lead-budget">Бюджет</label>
+              <select id="lead-budget" name="budget"></select>
+            </div>
+            <div class="field">
+              <label for="lead-deadline">Сроки</label>
+              <select id="lead-deadline" name="deadline"></select>
+            </div>
           </div>
           <div class="field">
-            <label for="f-task">Что нужно сделать <span class="optional">(необязательно)</span></label>
-            <textarea id="f-task" name="task" rows="3"></textarea>
+            <label for="lead-name">Как вас зовут</label>
+            <input id="lead-name" name="name" autocomplete="name" maxlength="100" required>
           </div>
-          <button type="submit" class="btn btn-primary">Отправить</button>
+          <div class="field-row">
+            <div class="field">
+              <label for="lead-method">Как связаться</label>
+              <select id="lead-method" name="contactMethod"></select>
+            </div>
+            <div class="field">
+              <label for="lead-contact">Контакт</label>
+              <input id="lead-contact" name="contact" maxlength="254" required>
+            </div>
+          </div>
+          <!-- Ловушка для ботов: человек это поле не видит и не заполняет. -->
+          <div class="trap" aria-hidden="true">
+            <label for="lead-website">Не заполняйте</label>
+            <input id="lead-website" name="website" tabindex="-1" autocomplete="off">
+          </div>
+          <label class="consent">
+            <input type="checkbox" name="consent" required>
+            <span>Согласен на <a href="privacy.html" target="_blank" rel="noopener">обработку персональных данных</a></span>
+          </label>
+          <button type="submit" class="btn btn-primary">Отправить заявку</button>
+          <p class="form-error" role="alert" hidden></p>
         </form>
-        <p class="form-done" role="status" hidden></p>
+        <div class="form-done" role="status" tabindex="-1" hidden>
+          <p class="form-done-title"></p>
+          <p class="form-done-text muted"></p>
+          <p class="form-done-hint muted" hidden></p>
+          <a class="btn glass" data-lead-telegram target="_blank" rel="noopener noreferrer" hidden></a>
+        </div>
       </div>
     </section>
   </div>
@@ -1449,18 +1513,22 @@ const site = {
   ],
 
   // priceFrom — цена «от», в рублях. null — цена ещё не решена, на сайте будет «от … ₽».
+  // id — по нему сервер понимает, какую услугу выбрали в заявке (те же id — в server/lib/content.mjs и tg-app/data.js).
   services: [
     {
+      id: "sites",
       title: "Сайты и лендинги",
       description: "Лендинг под услугу, сайт-визитка или доработка старого сайта. Адаптивно для телефона.",
       priceFrom: 25000,
     },
     {
+      id: "apps",
       title: "Приложения и боты",
       description: "Telegram-боты, веб-приложения, личные кабинеты, калькуляторы и записи онлайн.",
       priceFrom: 20000,
     },
     {
+      id: "ai",
       title: "ИИ‑агенты",
       description: "Помощник, который отвечает клиентам, разбирает заявки, готовит документы и экономит часы рутины.",
       priceFrom: 40000,
@@ -1491,12 +1559,33 @@ const site = {
     text: "Напишите в Telegram, что нужно сделать. Отвечу в течение дня и назову цену.",
   },
 
-  form: {
-    // ЗАГЛУШКА: куда отправлять заявки, решает владелец (бриф, раздел 9, вопросы 3–4).
-    // Пока здесь пусто, заявка никуда не уходит: посетитель видит «Спасибо», а владелец письма не получит.
-    // Впишите почту — и форма будет открывать письмо с заявкой на этот адрес.
-    email: "",
-    thanks: "Спасибо! Свяжусь с вами в течение дня.",
+  // Форма заявки в «Контактах». Заявка уходит на сервер (/api/leads) и сразу приходит владельцу в Telegram.
+  // Ключи (lt30, asap, telegram…) должны совпадать с server/lib/leads.mjs — подписи можно менять свободно.
+  lead: {
+    apiUrl: "/api/leads",
+    budgets: {
+      unknown: "Пока не знаю",
+      lt30: "До 30 000 ₽",
+      "30_60": "30–60 тыс. ₽",
+      "60_100": "60–100 тыс. ₽",
+      gt100: "Больше 100 тыс. ₽",
+    },
+    deadlines: {
+      flexible: "Не важно",
+      asap: "Срочно",
+      "2w": "В течение 2 недель",
+      month: "В течение месяца",
+    },
+    methods: {
+      telegram: { label: "Telegram", placeholder: "@username", type: "text", autocomplete: "off" },
+      email: { label: "Почта", placeholder: "you@example.com", type: "email", autocomplete: "email" },
+      phone: { label: "Телефон", placeholder: "+7 999 123-45-67", type: "tel", autocomplete: "tel" },
+    },
+    otherService: "Другое",
+    thanksTitle: "Заявка №{number} принята",
+    thanksText: "Отвечу в течение дня и назову цену.",
+    telegramButton: "Получить ответ в Telegram",
+    telegramHint: "Нажмите — и мой ответ придёт вам в Telegram от бота @stvnislv_bot.",
   },
 };
 
@@ -1761,54 +1850,129 @@ site.steps.forEach((step, i) => {
   steps.append(item);
 });
 
-// Форма заявки
-const form = document.querySelector("#request-form");
-const formToggle = document.querySelector(".form-toggle");
-const formDone = document.querySelector(".form-done");
-const messages = {
-  name: "Напишите, как вас зовут.",
-  contact: "Оставьте телефон, почту или ник, чтобы я мог ответить.",
-};
-
-formToggle.addEventListener("click", () => {
-  const open = form.hidden;
-  form.hidden = !open;
-  formToggle.setAttribute("aria-expanded", String(open));
-  if (open) form.elements.name.focus();
-});
-
-for (const field of Object.keys(messages)) {
-  const input = form.elements[field];
-  input.addEventListener("input", () => input.setCustomValidity(""));
-}
-
-form.addEventListener("submit", (e) => {
-  e.preventDefault();
-  for (const [field, message] of Object.entries(messages)) {
-    const input = form.elements[field];
-    input.setCustomValidity(input.value.trim() ? "" : message);
-  }
-  if (!form.reportValidity()) return;
-
+// Форма заявки: проверка в браузере, отправка на сервер, ответ «Заявка №… принята».
+// Сервер проверяет всё ещё раз (server/lib/leads.mjs) — его сообщение об ошибке показывается как есть.
+{
+  const form = document.querySelector("#lead-form");
+  const toggle = document.querySelector(".form-toggle");
+  const done = document.querySelector(".form-done");
+  const errorBox = form.querySelector(".form-error");
   const submit = form.querySelector("[type=submit]");
-  submit.disabled = true;
-  submit.textContent = "Отправляю…";
+  const fields = form.elements;
+  const cfg = site.lead;
 
-  const data = Object.fromEntries(new FormData(form));
-  if (site.form.email) {
-    const body = `Имя: ${data.name}\nКак связаться: ${data.contact}\nЗадача: ${data.task || "—"}`;
-    location.href = `mailto:${site.form.email}?subject=${encodeURIComponent("Заявка с сайта")}&body=${encodeURIComponent(body)}`;
-  } else {
-    console.warn("Форма не подключена: впишите site.form.email. Заявка не отправлена:", data);
+  const option = (value, label) => Object.assign(document.createElement("option"), { value, textContent: label });
+  fields.serviceId.append(option("", "Выберите…"));
+  for (const service of site.services) fields.serviceId.append(option(service.id, service.title));
+  fields.serviceId.append(option("other", cfg.otherService));
+  for (const [value, label] of Object.entries(cfg.budgets)) fields.budget.append(option(value, label));
+  for (const [value, label] of Object.entries(cfg.deadlines)) fields.deadline.append(option(value, label));
+  for (const [value, method] of Object.entries(cfg.methods)) fields.contactMethod.append(option(value, method.label));
+
+  // Поле «Контакт» подстраивается под способ связи: подсказка, клавиатура на телефоне, автозаполнение.
+  function updateContactField() {
+    const method = cfg.methods[fields.contactMethod.value];
+    fields.contact.type = method.type;
+    fields.contact.placeholder = method.placeholder;
+    fields.contact.autocomplete = method.autocomplete;
+    fields.contact.setCustomValidity("");
+  }
+  fields.contactMethod.addEventListener("change", updateContactField);
+  updateContactField();
+
+  // Те же правила, что на сервере: ник Telegram 5–32 символа, телефон 7–15 цифр.
+  function contactProblem() {
+    const value = fields.contact.value.trim();
+    const method = fields.contactMethod.value;
+    if (!value) return "Укажите, как с вами связаться.";
+    if (method === "telegram" && !/^@?[A-Za-z][A-Za-z0-9_]{4,31}$/.test(value.replace(/^https?:\/\/t\.me\//i, ""))) {
+      return "Укажите ник в Telegram, например @username.";
+    }
+    if (method === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return "Укажите корректную почту.";
+    if (method === "phone") {
+      const digits = value.replace(/\D/g, "").length;
+      if (!/^\+?[\d\s()-]+$/.test(value) || digits < 7 || digits > 15) return "Укажите номер телефона, например +7 999 123-45-67.";
+    }
+    return "";
+  }
+  const messages = {
+    serviceId: () => (fields.serviceId.value ? "" : "Выберите, что нужно сделать."),
+    task: () => (fields.task.value.trim().length >= 3 ? "" : "Опишите задачу хотя бы парой слов."),
+    name: () => (fields.name.value.trim() ? "" : "Напишите, как вас зовут."),
+    contact: contactProblem,
+    consent: () => (fields.consent.checked ? "" : "Нужно ваше согласие, иначе я не смогу принять заявку."),
+  };
+  for (const name of Object.keys(messages)) {
+    fields[name].addEventListener(name === "consent" || name === "serviceId" ? "change" : "input", () => fields[name].setCustomValidity(""));
   }
 
-  setTimeout(() => {
-    form.hidden = true;
-    formToggle.hidden = true;
-    formDone.textContent = site.form.thanks;
-    formDone.hidden = false;
-  }, 400);
-});
+  toggle.addEventListener("click", () => {
+    const open = form.hidden;
+    form.hidden = !open;
+    toggle.setAttribute("aria-expanded", String(open));
+    if (open) fields.serviceId.focus();
+  });
+
+  function showError(text) {
+    errorBox.textContent = text;
+    errorBox.hidden = false;
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    errorBox.hidden = true;
+    for (const [name, check] of Object.entries(messages)) fields[name].setCustomValidity(check());
+    if (!form.reportValidity()) return;
+
+    submit.disabled = true;
+    submit.textContent = "Отправляю…";
+    try {
+      const response = await fetch(cfg.apiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          serviceId: fields.serviceId.value,
+          task: fields.task.value.trim(),
+          budget: fields.budget.value,
+          deadline: fields.deadline.value,
+          name: fields.name.value.trim(),
+          contactMethod: fields.contactMethod.value,
+          contact: fields.contact.value.trim(),
+          consent: fields.consent.checked,
+          website: fields.website.value,
+        }),
+      });
+      let result = {};
+      try { result = await response.json(); } catch { /* ответ не JSON — покажем общее сообщение */ }
+      if (!response.ok) {
+        showError(result.error || "Не получилось отправить заявку. Попробуйте ещё раз или напишите мне в Telegram.");
+        return;
+      }
+
+      form.hidden = true;
+      toggle.hidden = true;
+      done.querySelector(".form-done-title").textContent = cfg.thanksTitle.replace("{number}", result.number);
+      done.querySelector(".form-done-text").textContent = cfg.thanksText;
+      const link = done.querySelector("[data-lead-telegram]");
+      if (result.telegramLink) {
+        link.href = result.telegramLink;
+        link.textContent = cfg.telegramButton;
+        link.hidden = false;
+        const hint = done.querySelector(".form-done-hint");
+        hint.textContent = cfg.telegramHint;
+        hint.hidden = false;
+      }
+      done.hidden = false;
+      done.focus();
+    } catch {
+      // Нет сети или страница открыта файлом (без сервера).
+      showError(`Не получилось отправить заявку: нет связи с сервером. Проверьте интернет или напишите мне в Telegram: @${site.telegram}.`);
+    } finally {
+      submit.disabled = false;
+      submit.textContent = "Отправить заявку";
+    }
+  });
+}
 
 // Разделы проявляются один раз при прокрутке.
 const revealed = new IntersectionObserver(

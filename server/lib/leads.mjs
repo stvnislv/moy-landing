@@ -33,7 +33,7 @@ export const SOURCES = { site: "сайт", miniapp: "Mini App" };
 // Версия текста политики (privacy.html). Меняется вместе с текстом — так видно, с какой версией согласился клиент.
 export const POLICY_VERSION = "2026-11-11";
 
-const FIELDS = ["serviceId", "task", "budget", "deadline", "name", "contactMethod", "contact", "consent", "website"];
+const FIELDS = ["serviceId", "task", "budget", "deadline", "name", "contactMethod", "contact", "consent", "website", "writeAccess"];
 
 /** Проверить форму заявки. telegramUser — проверенный пользователь Mini App или null. */
 export function validateLeadInput(body, { services, telegramUser = null }) {
@@ -57,8 +57,11 @@ export function validateLeadInput(body, { services, telegramUser = null }) {
   } else contact = v.telegramUsername(body.contact);
 
   if (body.consent !== true) throw new RequestValidationError("Нужно согласие на обработку персональных данных.");
+  // Mini App: клиент только что разрешил боту писать ему (requestWriteAccess). В initData этого ещё нет —
+  // он подписан при открытии приложения. Если это неправда, бот получит отказ Telegram и пометит заявку.
+  const writeAccess = Boolean(telegramUser) && body.writeAccess === true;
 
-  return { serviceId, task, budget, deadline, contact: { name, method, value: contact } };
+  return { serviceId, task, budget, deadline, contact: { name, method, value: contact }, writeAccess };
 }
 
 function summary(lead) {
@@ -84,7 +87,7 @@ export async function syncIndex(store, lead) {
 }
 
 /** Создать заявку. Возвращает её целиком. */
-export async function createLead(input, { source, telegramUser = null, now = new Date(), env = process.env }) {
+export async function createLead({ writeAccess = false, ...input }, { source, telegramUser = null, now = new Date(), env = process.env }) {
   const leads = await openStore("leads", env);
   const meta = await openStore("meta", env);
   const { value: number } = await updateJSON(meta, "lead-counter", (n) => (n ?? 0) + 1);
@@ -101,7 +104,7 @@ export async function createLead(input, { source, telegramUser = null, now = new
     tg: telegramUser
       ? { userId: telegramUser.id, chatId: telegramUser.id, username: telegramUser.username, firstName: telegramUser.firstName }
       : null,
-    canMessage: Boolean(telegramUser?.allowsWriteToPm),
+    canMessage: Boolean(telegramUser?.allowsWriteToPm) || writeAccess,
     linkToken: randomBytes(16).toString("base64url"),
     consent: { at, policyVersion: POLICY_VERSION },
     ownerMessageId: null,

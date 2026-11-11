@@ -54,8 +54,10 @@ window.APP_DATA = {
   // Экран «Услуги». Названия, описания и цены — как на сайте (объект site.services в ../index.html).
   // term — минимальный срок из подробного прайса брифа (раздел 4).
   // message — текст, который подставится в чат, когда человек нажмёт «Обсудить».
+  // id — по нему сервер понимает, какую услугу выбрали в заявке (те же id — на сайте и в server/lib/content.mjs).
   services: [
     {
+      id: "sites",
       title: "Сайты и лендинги",
       description: "Лендинг под услугу, сайт-визитка или доработка старого сайта. Адаптивно для телефона.",
       price: 25000,
@@ -63,6 +65,7 @@ window.APP_DATA = {
       message: "Здравствуйте! Хочу обсудить сайт или лендинг.",
     },
     {
+      id: "apps",
       title: "Приложения и боты",
       description: "Telegram-боты, веб-приложения, личные кабинеты, калькуляторы и записи онлайн.",
       price: 20000,
@@ -70,6 +73,7 @@ window.APP_DATA = {
       message: "Здравствуйте! Хочу обсудить приложение или бота.",
     },
     {
+      id: "ai",
       title: "ИИ‑агенты",
       description: "Помощник, который отвечает клиентам, разбирает заявки, готовит документы и экономит часы рутины.",
       price: 40000,
@@ -120,6 +124,42 @@ window.APP_DATA = {
     button: "Получить скидку 5%",
     url: "https://t.me/STVNISLV_BOT?start=from_app",
     skip: "Пропустить",
+  },
+
+  // Заявка: окно поверх приложения (кнопка «Оставить заявку» на экране «Связаться»).
+  // Заявка уходит на сервер и сразу приходит владельцу в Telegram. Ключи (lt30, asap, telegram…) — как в server/lib/leads.mjs.
+  lead: {
+    // Адрес сервера. Приложение открыто с другого адреса (stvnislv-app.netlify.app), поэтому — полный.
+    apiUrl: "https://stvnislv.netlify.app/api/leads",
+    privacyUrl: "https://stvnislv.netlify.app/privacy.html",
+    button: "Оставить заявку",
+    title: "Заявка",
+    text: "Расскажите о задаче — заявка сразу придёт мне в Telegram. Отвечу в течение дня.",
+    otherService: "Другое",
+    budgets: {
+      unknown: "Пока не знаю",
+      lt30: "До 30 000 ₽",
+      "30_60": "30–60 тыс. ₽",
+      "60_100": "60–100 тыс. ₽",
+      gt100: "Больше 100 тыс. ₽",
+    },
+    deadlines: {
+      flexible: "Не важно",
+      asap: "Срочно",
+      "2w": "В течение 2 недель",
+      month: "В течение месяца",
+    },
+    methods: {
+      telegram: { label: "Telegram", placeholder: "@username", type: "text", autocomplete: "off" },
+      email: { label: "Почта", placeholder: "you@example.com", type: "email", autocomplete: "email" },
+      phone: { label: "Телефон", placeholder: "+7 999 123-45-67", type: "tel", autocomplete: "tel" },
+    },
+    submit: "Отправить заявку",
+    sending: "Отправляю…",
+    close: "Закрыть",
+    thanksTitle: "Заявка №{number} принята",
+    thanksText: "Отвечу в течение дня. Ответ придёт сюда, в Telegram, от бота.",
+    thanksTextNoBot: "Отвечу в течение дня по контакту, который вы указали.",
   },
 
   // Экран «Связаться».

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Политика обработки персональных данных — Stvnislv</title>
+<meta name="robots" content="noindex">
+<!-- ЗАГЛУШКА: черновик. Текст должен проверить юрист или сам владелец (BACKEND-PLAN.md, раздел 8).
+     Факты о данных взяты из кода (server/lib/leads.mjs): какие поля хранятся, где и сколько.
+     При изменении текста поменяйте POLICY_VERSION в server/lib/leads.mjs — так в заявке видно, с какой версией согласился клиент. -->
+<style>
+  :root { color-scheme: light dark; --bg: #f3f3f1; --ink: #19191b; --muted: #5b5a57; --hair: rgba(25, 25, 27, 0.12); }
+  @media (prefers-color-scheme: dark) { :root { --bg: #1c1b1a; --ink: #edebe7; --muted: #a9a59e; --hair: rgba(237, 235, 231, 0.13); } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 44rem; margin: 0 auto; padding: 3rem 1rem 4rem; }
+  h1 { font-size: 1.75rem; line-height: 1.2; font-weight: 500; letter-spacing: -0.02em; margin: 0 0 0.5rem; }
+  h2 { font-size: 1.125rem; font-weight: 600; margin: 2rem 0 0.5rem; }
+  p, li { color: var(--ink); }
+  .muted { color: var(--muted); }
+  .draft { padding: 0.75rem 1rem; border: 1px dashed var(--muted); border-radius: 0.75rem; color: var(--muted); }
+  a { color: inherit; text-underline-offset: 3px; }
+  ul { padding-left: 1.25rem; }
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--hair); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Политика обработки персональных данных</h1>
+  <p class="muted">Версия от 11 ноября 2026 года</p>
+  <p class="draft">Черновик: текст ещё проверяется.</p>
+
+  <h2>Кто обрабатывает данные</h2>
+  <!-- ЗАГЛУШКА: ФИО и статус (самозанятый, ИП) владельца, ИНН. -->
+  <p>Stvnislv — разработчик сайтов, приложений и ИИ‑агентов (далее — «я»). Связаться со мной: <a href="mailto:stvnislv@gmail.com">stvnislv@gmail.com</a>, Telegram <a href="https://t.me/stvnislvvv">@stvnislvvv</a>.</p>
+
+  <h2>Какие данные я получаю</h2>
+  <p>Когда вы оставляете заявку на этом сайте или в Telegram-приложении @stvnislv_bot:</p>
+  <ul>
+    <li>имя;</li>
+    <li>контакт, который вы указали: ник в Telegram, адрес почты или номер телефона;</li>
+    <li>описание задачи, бюджет и сроки;</li>
+    <li>если заявка отправлена из Telegram-приложения или вы перешли в бота по ссылке после заявки — ваш Telegram ID, имя и ник в Telegram;</li>
+    <li>время заявки и время согласия с этой политикой.</li>
+  </ul>
+  <p>IP-адрес не сохраняется. Чтобы защититься от спама, сервер считает число заявок с одного адреса за час и хранит только необратимый отпечаток адреса.</p>
+
+  <h2>Зачем</h2>
+  <p>Только чтобы ответить на заявку, обсудить и выполнить работу. Я не передаю данные для рекламы и не делаю рассылок.</p>
+
+  <h2>Где хранятся данные</h2>
+  <p>Заявки хранятся в базе данных Supabase (серверы в США), сайт работает на Netlify (США). Уведомление о заявке приходит мне в Telegram, поэтому её текст хранится и в Telegram.</p>
+
+  <h2>Сколько хранятся</h2>
+  <p>Пока идёт работа по заявке и 12 месяцев после её завершения, затем удаляются автоматически.</p>
+
+  <h2>Ваши права</h2>
+  <p>Вы можете узнать, какие данные о вас хранятся, исправить их или попросить удалить — напишите на <a href="mailto:stvnislv@gmail.com">stvnislv@gmail.com</a> или в Telegram <a href="https://t.me/stvnislvvv">@stvnislvvv</a>. Согласие можно отозвать так же. Отвечу в течение 10 рабочих дней.</p>
+
+  <footer class="muted"><a href="./">← На главную</a></footer>
+</main>
+</body>
+</html>

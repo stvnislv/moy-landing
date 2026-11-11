@@ -94,6 +94,7 @@
         <h3 class="contact-heading" data-contact-title></h3>
         <p class="contact-text" data-contact-text></p>
         <button type="button" class="btn-main tap" data-telegram-button></button>
+        <button type="button" class="btn-ghost tap lead-open" data-lead-open></button>
       </div>
       <ul class="list glass" data-contact-list></ul>
       <h3 class="block-title">Как я работаю</h3>
@@ -147,6 +148,46 @@
       <ul class="offer-list" data-offer-list></ul>
       <button type="button" class="offer-cta" data-offer-cta></button>
       <button type="button" class="offer-skip" data-offer-close data-offer-skip></button>
+    </section>
+  </div>
+
+  <!-- Заявка: окно поверх приложения (app.js, раздел «Заявка»). Поля и тексты — APP_DATA.lead в data.js.
+       Закрыть — «Закрыть», кнопка «Назад» Telegram или Esc. -->
+  <div class="lead-sheet" data-lead-sheet hidden>
+    <section class="lead-card" role="dialog" aria-modal="true" aria-labelledby="lead-title">
+      <div class="lead-head">
+        <h2 class="lead-title" id="lead-title" data-lead-title></h2>
+        <button type="button" class="lead-close tap" data-lead-close></button>
+      </div>
+      <p class="lead-text" data-lead-text></p>
+      <form class="lead-form" data-lead-form novalidate>
+        <label class="lead-field"><span>Что нужно</span><select name="serviceId" required></select></label>
+        <label class="lead-field"><span>Опишите задачу</span>
+          <textarea name="task" rows="4" maxlength="2000" required placeholder="Например: бот для записи клиентов"></textarea></label>
+        <div class="lead-row">
+          <label class="lead-field"><span>Бюджет</span><select name="budget"></select></label>
+          <label class="lead-field"><span>Сроки</span><select name="deadline"></select></label>
+        </div>
+        <label class="lead-field"><span>Как вас зовут</span><input name="name" autocomplete="name" maxlength="100" required></label>
+        <div class="lead-row">
+          <label class="lead-field"><span>Как связаться</span><select name="contactMethod"></select></label>
+          <label class="lead-field"><span>Контакт</span><input name="contact" maxlength="254"></label>
+        </div>
+        <!-- Ловушка для ботов: человек это поле не видит. -->
+        <div class="trap" aria-hidden="true"><input name="website" tabindex="-1" autocomplete="off"></div>
+        <label class="lead-consent">
+          <input type="checkbox" name="consent" required>
+          <span>Согласен на <button type="button" class="link-inline" data-lead-privacy>обработку персональных данных</button></span>
+        </label>
+        <p class="lead-error" role="alert" hidden></p>
+        <button type="submit" class="btn-main tap" data-lead-submit></button>
+      </form>
+      <div class="lead-done" data-lead-done hidden>
+        <div class="welcome-mark" aria-hidden="true">✓</div>
+        <p class="lead-done-title" data-lead-done-title></p>
+        <p class="lead-done-text" data-lead-done-text></p>
+        <button type="button" class="btn-ghost tap" data-lead-close></button>
+      </div>
     </section>
   </div>
 

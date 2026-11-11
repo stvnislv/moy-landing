@@ -62,7 +62,7 @@ export function clientIp(req, env = process.env) {
 async function serveStatic(root, pathname, res) {
   let decoded;
   try {
-    decoded = decodeURIComponent(pathname === "/" ? "/index.html" : pathname);
+    decoded = decodeURIComponent(pathname.endsWith("/") ? `${pathname}index.html` : pathname);
   } catch {
     decoded = "";
   }
