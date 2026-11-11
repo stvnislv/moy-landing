@@ -26,7 +26,7 @@ export const routes = {
 };
 
 // Что можно отдавать как статику (только при STATIC_ROOT). Всё остальное в папке проекта закрыто.
-const STATIC_FILES = /^\/(index\.html|hero-bg\.jpg|privacy\.html|tg-app\/(?!CLAUDE\.md)[\w.-]+(\/[\w.-]+)*)$/;
+const STATIC_FILES = /^\/(index\.html|hero-bg\.jpg|privacy\.html|works\/[\w.-]+|tg-app\/(?!CLAUDE\.md)[\w.-]+(\/[\w.-]+)*)$/;
 const TYPES = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",

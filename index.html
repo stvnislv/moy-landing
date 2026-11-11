@@ -687,7 +687,7 @@ html.night .slit { background: #050505; box-shadow: 0 1px 0 rgba(255, 255, 255, 
   letter-spacing: -0.03em;
   white-space: nowrap;
 }
-.work img {
+.work > img {
   margin: -1.75rem -1.75rem 1.5rem;
   width: calc(100% + 3.5rem);
   max-width: none;
@@ -921,7 +921,7 @@ html.night .form-error { color: #ff8a7a; }
   .actions { margin-top: 2.5rem; }
   .cards { margin-top: 3rem; }
   .card { padding: 2rem; }
-  .work img { margin: -2rem -2rem 1.5rem; width: calc(100% + 4rem); }
+  .work > img { margin: -2rem -2rem 1.5rem; width: calc(100% + 4rem); }
   .steps { grid-template-columns: repeat(2, 1fr); gap: 2.5rem 2rem; }
   .contacts-panel { padding: 4rem 3rem; }
   .contacts-panel .lead { font-size: 1.25rem; }
@@ -1183,6 +1183,48 @@ body { font-size: var(--step-0); }
   border-bottom-right-radius: 0.375rem;
   background: linear-gradient(180deg, #f2b46c, #d98a3d);
   box-shadow: 0 10px 24px -8px rgba(255, 170, 80, 0.6);
+}
+/* Скриншот работы: окно с картинкой страницы целиком. Наведение (или касание на телефоне) — класс is-scrolling:
+   картинка медленно едет вверх на --shift за --dur (их считает скрипт); без класса — плавно возвращается. */
+.work-shot {
+  position: relative;
+  min-height: 17rem;
+  overflow: hidden;
+  background: #f3f3f1;
+}
+.work-shot img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  width: 100%;
+  height: auto;
+  transform: translate3d(0, 0, 0);
+  transition: transform 1.4s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+.work.is-scrolling .work-shot img {
+  transform: translate3d(0, var(--shift, 0px), 0);
+  transition: transform var(--dur, 8s) cubic-bezier(0.45, 0, 0.55, 1);
+}
+/* Узкий скриншот (Mini App, бот) — колонкой по центру, как экран телефона, на тёплом фоне. */
+.work-shot-phone {
+  background: radial-gradient(80% 60% at 50% 0%, rgba(255, 196, 120, 0.35), transparent 70%), linear-gradient(#ebe8e3, #dedad3);
+}
+.work-shot-phone img {
+  left: 50%;
+  width: min(15.5rem, 68%);
+  margin-left: calc(min(15.5rem, 68%) / -2);
+  top: 1.25rem;
+  border-radius: 1rem 1rem 0 0;
+  box-shadow: 0 0 0 1px rgba(25, 25, 27, 0.08), 0 18px 40px -12px rgba(25, 20, 15, 0.35);
+}
+.work.is-scrolling .work-shot-phone img { transform: translate3d(0, calc(var(--shift, 0px) - 1.25rem), 0); }
+html.night .work-shot { background: #2a2826; }
+html.night .work-shot-phone { background: radial-gradient(80% 60% at 50% 0%, rgba(255, 170, 80, 0.18), transparent 70%), linear-gradient(#2c2a27, #1f1e1c); }
+@media (hover: none) { .work:has(.work-shot) { cursor: pointer; } }
+@media (min-width: 768px) {
+  .work-shot { order: 2; min-height: 19rem; }
 }
 .work-invite {
   display: flex;
@@ -1710,18 +1752,23 @@ const site = {
   // Включать, когда будет готова оплата по заявке (BACKEND-PLAN.md, этап 6).
   payment: false,
 
-  // Работы. Новый проект: { title, description, image: "works/имя.jpg", url: "https://…", linkText: "Открыть проект" }.
+  // Работы. Новый проект: { title, description, image: "works/имя.webp", frame: "phone", url: "https://…", linkText: "Открыть проект" }.
+  // image — скриншот страницы целиком (в светлой теме); при наведении он прокручивается сверху вниз.
+  // frame: "phone" — узкий скриншот (телефон, Telegram) стоит колонкой по центру; без него — на всю ширину.
   // Без картинки рисуется миниатюра preview: "site" (щель и свет), "app" (телефон) или "bot" (переписка).
   // Пока работ меньше трёх, остальные места занимают карточки «Здесь будет ваш проект».
   portfolio: [
     {
       title: "Этот сайт",
       description: "Лендинг-портфолио: светлая и тёмная тема, стекло и живой свет.",
+      image: "works/site.webp",
       preview: "site",
     },
     {
       title: "Telegram Mini App",
       description: "Мини-приложение внутри Telegram: услуги и цены, работы и заявка в пару касаний.",
+      image: "works/miniapp.webp",
+      frame: "phone",
       preview: "app",
       url: "https://stvnislv-app.netlify.app/",
       linkText: "Открыть приложение",
@@ -1729,6 +1776,8 @@ const site = {
     {
       title: "Telegram-бот @stvnislv_bot",
       description: "Открывает мини-приложение, принимает заявки и сразу передаёт их мне, а мои ответы — клиенту.",
+      image: "works/bot.webp",
+      frame: "phone",
       preview: "bot",
       url: "https://t.me/stvnislv_bot",
       linkText: "Открыть бота",
@@ -2015,11 +2064,16 @@ for (const work of site.portfolio) {
     card.append(preview);
   }
   if (work.image) {
+    // Скриншот страницы целиком в «окне» карточки; прокрутку при наведении/касании задаёт блок «Скриншоты работ» ниже.
+    const shot = el("div", `work-shot${work.frame === "phone" ? " work-shot-phone" : ""}`);
     const img = el("img");
     img.src = work.image;
-    img.alt = "";
+    img.alt = `${work.title} — скриншот`;
     img.loading = "lazy";
-    card.append(img);
+    img.decoding = "async";
+    shot.append(img);
+    card.append(shot);
+    if (work.url) card.dataset.url = work.url;
   }
   text.append(el("h3", "", work.title), el("p", "desc", work.description));
   card.append(text);
@@ -2040,6 +2094,52 @@ for (const work of site.portfolio) {
   inviteButton.dataset.leadOpen = "";
   invite.append(el("p", "work-invite-text", "Следующим здесь может быть ваш проект."), inviteButton);
   works.append(invite);
+}
+
+// Скриншоты работ: при наведении курсора скриншот медленно едет вниз и показывает страницу целиком,
+// курсор ушёл — плавно возвращается наверх. На телефоне (нет наведения): первое касание карточки — прокрутка,
+// второе — открыть работу (или вернуть наверх, если ссылки нет). Нажатие прямо на ссылку «Открыть…» открывает сразу.
+// Если в системе включено «уменьшение движения», скриншот стоит на месте.
+{
+  const canHover = window.matchMedia("(hover: hover) and (pointer: fine)");
+  const cards = [...document.querySelectorAll(".work")].filter((card) => card.querySelector(".work-shot img"));
+
+  // Насколько сдвинуть картинку, чтобы показался её низ, и сколько это ехать (~170 px в секунду, от 3 до 14 с).
+  function measure(card) {
+    const box = card.querySelector(".work-shot");
+    const img = box.querySelector("img");
+    const shift = Math.min(0, box.clientHeight - img.offsetHeight);
+    card.style.setProperty("--shift", `${shift}px`);
+    card.style.setProperty("--dur", `${Math.min(14, Math.max(3, -shift / 170)).toFixed(1)}s`);
+  }
+  const scrollDown = (card) => {
+    if (calm.matches) return;
+    measure(card);
+    card.classList.add("is-scrolling");
+  };
+  const scrollUp = (card) => card.classList.remove("is-scrolling");
+
+  for (const card of cards) {
+    const img = card.querySelector(".work-shot img");
+    if (img.complete) measure(card); else img.addEventListener("load", () => measure(card), { once: true });
+    card.addEventListener("mouseenter", () => canHover.matches && scrollDown(card));
+    card.addEventListener("mouseleave", () => canHover.matches && scrollUp(card));
+    // С клавиатуры: фокус на ссылке карточки тоже показывает страницу.
+    card.addEventListener("focusin", () => scrollDown(card));
+    card.addEventListener("focusout", () => scrollUp(card));
+    card.addEventListener("click", (event) => {
+      if (canHover.matches || event.target.closest("a")) return;   // мышь — только наведение; ссылка — открывается сама
+      if (!card.classList.contains("is-scrolling") && !calm.matches) {
+        cards.forEach((other) => other !== card && scrollUp(other));
+        scrollDown(card);
+      } else if (card.dataset.url) {
+        window.open(card.dataset.url, "_blank", "noopener");
+      } else {
+        scrollUp(card);
+      }
+    });
+  }
+  window.addEventListener("resize", () => cards.forEach(measure));
 }
 
 // Как я работаю

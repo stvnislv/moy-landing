@@ -1,6 +1,6 @@
 # Статическая страница, Telegram-приложение (tg-app/, без CLAUDE.md) и серверные функции оплаты; исходники функций не публикуются как файлы сайта.
 [build]
-  command = "npm ci --omit=dev && mkdir -p _site && cp index.html hero-bg.jpg privacy.html _site/ && mkdir -p _site/tg-app && cp -R tg-app/. _site/tg-app/ && rm -f _site/tg-app/CLAUDE.md"
+  command = "npm ci --omit=dev && mkdir -p _site && cp index.html hero-bg.jpg privacy.html _site/ && cp -R works _site/ && mkdir -p _site/tg-app && cp -R tg-app/. _site/tg-app/ && rm -f _site/tg-app/CLAUDE.md"
   publish = "_site"
 
 [functions]
