@@ -58,6 +58,12 @@ export function createTelegram(token, { fetchImpl = globalThis.fetch } = {}) {
       call("sendMessage", { chat_id: chatId, text: truncate(text), parse_mode: "HTML", link_preview_options: { is_disabled: true }, ...extra }),
     editMessageText: (chatId, messageId, text, extra = {}) =>
       call("editMessageText", { chat_id: chatId, message_id: messageId, text: truncate(text), parse_mode: "HTML", link_preview_options: { is_disabled: true }, ...extra }),
+    // Копия сообщения в другой чат — любого типа (текст, фото, файл, голосовое), без подписи «Переслано от».
+    copyMessage: (chatId, fromChatId, messageId) =>
+      call("copyMessage", { chat_id: chatId, from_chat_id: fromChatId, message_id: messageId }),
+    // Реакция на сообщение (например, 👍 — «доставлено»).
+    setMessageReaction: (chatId, messageId, emoji) =>
+      call("setMessageReaction", { chat_id: chatId, message_id: messageId, reaction: [{ type: "emoji", emoji }] }),
     answerCallbackQuery: (callbackQueryId, text) =>
       call("answerCallbackQuery", { callback_query_id: callbackQueryId, ...(text ? { text } : {}) }),
     setWebhook: (url, secretToken, allowedUpdates = ["message", "callback_query"]) =>

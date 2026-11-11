@@ -3,8 +3,9 @@
 // Что умеет сейчас:
 //   • кнопки «Новая» / «В работе» / «Готово» под уведомлением о заявке — меняют статус (только владелец);
 //   • /start, /help, /contact — те же ответы, что были у bot/bot.mjs;
-//   • /start l_<токен> — клиент с сайта подключает Telegram к своей заявке, чтобы получить ответ.
-// Пересылка сообщений между владельцем и клиентом — следующий шаг (BACKEND-PLAN.md, этап 3).
+//   • /start l_<токен> — клиент с сайта подключает Telegram к своей заявке, чтобы получить ответ;
+//   • переписка: владелец отвечает («Ответить») на уведомление или сообщение клиента — бот копирует ответ клиенту
+//     (текст, фото, файлы, голосовые) и ставит 👍; клиент пишет боту — сообщение приходит владельцу с номером заявки.
 //
 // Telegram всегда получает 200: иначе он повторяет одно и то же обновление снова и снова.
 
@@ -12,7 +13,20 @@ import { getBotToken, getOwnerId, isTelegramWebhook } from "../lib/auth.mjs";
 import { errorResponse, jsonResponse, readJsonBody } from "../lib/http.mjs";
 import { getServices } from "../lib/content.mjs";
 import { escapeHtml, createTelegram, TelegramError } from "../lib/telegram.mjs";
-import { formatLeadForOwner, linkChatToLead, setLeadStatus, STATUSES, statusKeyboard } from "../lib/leads.mjs";
+import {
+  addLeadMessage,
+  contactLine,
+  findLeadByChat,
+  findLeadByOwnerMessage,
+  formatLeadForOwner,
+  linkChatToLead,
+  mapOwnerMessage,
+  markUnreachable,
+  messageSummary,
+  setLeadStatus,
+  STATUSES,
+  statusKeyboard,
+} from "../lib/leads.mjs";
 
 // Адрес Mini App для кнопки «Открыть приложение» — тот же, что у кнопки меню бота в @BotFather.
 export const APP_URL = "https://stvnislv-app.netlify.app/";
@@ -72,7 +86,8 @@ async function handleCallback(query, { telegram, env, now }) {
   }
 }
 
-async function handleMessage(message, { telegram, env, now }) {
+async function handleMessage(message, context) {
+  const { telegram, env, now } = context;
   if (message.chat?.type !== "private") return;           // в группах бот молчит
   const [command, payload] = parseCommand(message.text);
   const chatId = message.chat.id;
@@ -85,16 +100,90 @@ async function handleMessage(message, { telegram, env, now }) {
       return;
     }
     await telegram.sendMessage(chatId,
-      `Готово! Ответ по заявке №${lead.number} придёт сюда, в этот чат.`, { reply_markup: appButton });
-    await telegram.sendMessage(getOwnerId(env),
-      `🔗 Клиент по заявке №${lead.number} подключил Telegram — теперь ему можно ответить через бота.`);
+      `Готово! Ответ по заявке №${lead.number} придёт сюда, в этот чат. Можете сразу написать здесь, если хотите что-то добавить.`,
+      { reply_markup: appButton });
+    const note = await telegram.sendMessage(getOwnerId(env),
+      `🔗 Клиент по заявке №${lead.number} подключил Telegram — ответьте на это сообщение, и ответ уйдёт ему через бота.`);
+    await mapOwnerMessage(note.message_id, lead.id, env);
     return;
   }
-  if (command && Object.hasOwn(replies, command)) {
-    const reply = replies[command](name);
-    await telegram.sendMessage(chatId, reply.text, { reply_markup: reply.reply_markup });
+  if (command) {
+    if (Object.hasOwn(replies, command)) {
+      const reply = replies[command](name);
+      await telegram.sendMessage(chatId, reply.text, { reply_markup: reply.reply_markup });
+    }
+    return;                                                // незнакомые команды — без ответа
   }
-  // Остальные сообщения пока без ответа — как раньше у bot/bot.mjs.
+
+  if (message.from?.id === getOwnerId(env)) await handleOwnerMessage(message, context);
+  else await handleClientMessage(message, context);
+}
+
+// Владелец отвечает клиенту: «Ответить» на уведомление о заявке или на сообщение клиента.
+async function handleOwnerMessage(message, { telegram, env, now }) {
+  const ownerChat = message.chat.id;
+  const repliedTo = message.reply_to_message?.message_id;
+  if (!repliedTo) {
+    await telegram.sendMessage(ownerChat,
+      "Чтобы ответить клиенту, нажмите на уведомление о заявке или на его сообщение и выберите «Ответить» — ответ уйдёт ему через бота.");
+    return;
+  }
+  const lead = await findLeadByOwnerMessage(repliedTo, env);
+  if (!lead) {
+    await telegram.sendMessage(ownerChat,
+      "Не нашёл заявку для этого сообщения. Ответьте на уведомление о заявке или на сообщение клиента.",
+      { reply_parameters: { message_id: message.message_id } });
+    return;
+  }
+  if (!lead.tg?.chatId || !lead.canMessage) {
+    await telegram.sendMessage(ownerChat,
+      `Клиенту по заявке №${lead.number} нельзя написать через бота: он не подключил Telegram. Свяжитесь сами — ${escapeHtml(contactLine(lead))}`,
+      { reply_parameters: { message_id: message.message_id } });
+    return;
+  }
+
+  try {
+    await telegram.copyMessage(lead.tg.chatId, ownerChat, message.message_id);
+  } catch (error) {
+    // 403 — клиент заблокировал бота; 400 «chat not found» — чата больше нет.
+    if (error instanceof TelegramError && (error.code === 403 || error.code === 400)) {
+      await markUnreachable(lead.id, { env });
+      await telegram.sendMessage(ownerChat,
+        `Не доставлено: клиент по заявке №${lead.number} закрыл чат с ботом. Свяжитесь сами — ${escapeHtml(contactLine(lead))}`,
+        { reply_parameters: { message_id: message.message_id } });
+      return;
+    }
+    throw error;
+  }
+  await addLeadMessage(lead.id, "owner", messageSummary(message), { now, env });
+  try {
+    await telegram.setMessageReaction(ownerChat, message.message_id, "👍");   // «доставлено»
+  } catch {
+    await telegram.sendMessage(ownerChat, "✓ Отправлено", { reply_parameters: { message_id: message.message_id } });
+  }
+}
+
+// Клиент пишет боту — сообщение уходит владельцу с номером заявки.
+async function handleClientMessage(message, { telegram, env, now }) {
+  const lead = await findLeadByChat(message.chat.id, env);
+  if (!lead) {
+    await telegram.sendMessage(message.chat.id,
+      `Чтобы обсудить проект, оставьте заявку в приложении — кнопка ниже — или напишите мне напрямую: ${AUTHOR}`,
+      { reply_markup: appButton });
+    return;
+  }
+
+  const ownerId = getOwnerId(env);
+  const header = `💬 <b>Заявка №${lead.number}</b> · ${escapeHtml(lead.contact.name || message.from?.first_name || "клиент")}`;
+  const sent = [];
+  if (message.text) {
+    sent.push(await telegram.sendMessage(ownerId, `${header}\n\n${escapeHtml(message.text)}`));
+  } else {
+    sent.push(await telegram.sendMessage(ownerId, `${header} — вложение:`));
+    sent.push(await telegram.copyMessage(ownerId, message.chat.id, message.message_id));
+  }
+  for (const item of sent) await mapOwnerMessage(item.message_id, lead.id, env);
+  await addLeadMessage(lead.id, "client", messageSummary(message), { now, env });
 }
 
 export async function telegramWebhookHandler(request, { env = process.env, telegram, now = new Date() } = {}) {

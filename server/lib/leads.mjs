@@ -5,6 +5,7 @@
 //   index            — краткие строки для списка в админке, новые сверху
 //   link/<token>     — { leadId }: ссылка t.me/<бот>?start=l_<token> привязывает чат клиента к заявке
 //   tg-msg/<id>      — { leadId }: на какое сообщение в чате владельца можно ответить по заявке
+//   tg-chat/<chatId> — { leadId }: последняя заявка клиента с этим чатом — туда попадают его сообщения боту
 // Раздел «meta»: lead-counter — номер последней заявки.
 
 import { randomBytes, randomUUID } from "node:crypto";
@@ -118,6 +119,8 @@ export async function createLead({ writeAccess = false, ...input }, { source, te
 
   if (!(await leads.set(`lead/${lead.id}`, lead, { onlyIfNew: true })).ok) throw new Error("Не удалось сохранить заявку.");
   await leads.set(`link/${lead.linkToken}`, { leadId: lead.id }, { onlyIfNew: true });
+  // Клиент из Mini App: его чат известен сразу — сообщения боту будут попадать в эту заявку.
+  if (lead.tg) await leads.set(`tg-chat/${lead.tg.chatId}`, { leadId: lead.id });
   await syncIndex(leads, lead);
   return lead;
 }
@@ -130,7 +133,9 @@ export function formatLeadForOwner(lead, services) {
     contact.value ? `${CONTACT_METHODS[contact.method]}: ${escapeHtml(contact.value)}` : CONTACT_METHODS[contact.method],
     lead.tg && !(contact.method === "telegram" && contact.value) ? `Telegram ID ${lead.tg.userId}` : "",
   ].filter(Boolean).join(" · ");
-  const reach = lead.canMessage ? "можно ответить через бота" : "бот пока не может написать клиенту";
+  const reach = lead.canMessage
+    ? "Ответить клиенту: «Ответить» на это сообщение — ответ уйдёт через бота"
+    : "Бот пока не может написать клиенту — свяжитесь по контакту";
 
   return [
     `${lead.status === "new" ? "🆕" : lead.status === "in_progress" ? "🛠" : "✅"} <b>Заявка №${lead.number}</b> · ${SOURCES[lead.source]}`,
@@ -219,4 +224,64 @@ export async function linkChatToLead(token, from, chatId, { now = new Date(), en
   if (!lead) return null;
   await leads.set(`tg-chat/${chatId}`, { leadId: lead.id });
   return lead;
+}
+
+// ---------- Переписка через бота ----------
+const MESSAGES_KEEP = 200;
+const MESSAGE_TEXT_MAX = 1000;
+
+/** Запомнить, что сообщение в чате владельца относится к заявке: на него можно ответить. */
+export async function mapOwnerMessage(messageId, leadId, env = process.env) {
+  await (await openStore("leads", env)).set(`tg-msg/${messageId}`, { leadId });
+}
+
+/** Заявка, к которой относится сообщение в чате владельца (уведомление или сообщение клиента). */
+export async function findLeadByOwnerMessage(messageId, env = process.env) {
+  const leads = await openStore("leads", env);
+  const link = (await leads.get(`tg-msg/${messageId}`))?.value;
+  return link ? (await leads.get(`lead/${link.leadId}`))?.value ?? null : null;
+}
+
+/** Последняя заявка клиента, который пишет боту из этого чата. */
+export async function findLeadByChat(chatId, env = process.env) {
+  const leads = await openStore("leads", env);
+  const link = (await leads.get(`tg-chat/${chatId}`))?.value;
+  return link ? (await leads.get(`lead/${link.leadId}`))?.value ?? null : null;
+}
+
+/** Короткий текст сообщения для истории: текст, подпись к вложению или «[вложение]». */
+export function messageSummary(message) {
+  const text = message.text ?? message.caption ?? "";
+  const kind = message.photo ? "фото" : message.document ? "файл" : message.voice ? "голосовое" : message.video ? "видео" : message.sticker ? "стикер" : "вложение";
+  const summary = message.text ? text : `[${kind}]${text ? ` ${text}` : ""}`;
+  return [...summary].slice(0, MESSAGE_TEXT_MAX).join("");
+}
+
+/**
+ * Добавить сообщение в историю заявки. from — "owner" или "client".
+ * Сообщение клиента помечает заявку непрочитанной; раз клиент сам написал боту, бот может ему отвечать.
+ */
+export async function addLeadMessage(leadId, from, text, { now = new Date(), env = process.env } = {}) {
+  const leads = await openStore("leads", env);
+  const { value: lead } = await updateJSON(leads, `lead/${leadId}`, (current) => current && {
+    ...current,
+    messages: [...(current.messages ?? []), { from, text, at: now.toISOString() }].slice(-MESSAGES_KEEP),
+    unread: from === "client" ? true : current.unread,
+    canMessage: from === "client" ? true : current.canMessage,
+    updatedAt: now.toISOString(),
+  });
+  if (lead) await syncIndex(leads, lead);
+  return lead;
+}
+
+/** Telegram ответил «нельзя писать этому клиенту» (заблокировал бота) — больше не пытаться. */
+export async function markUnreachable(leadId, { env = process.env } = {}) {
+  const leads = await openStore("leads", env);
+  await updateJSON(leads, `lead/${leadId}`, (current) => (current && current.canMessage ? { ...current, canMessage: false } : undefined));
+}
+
+/** Контакт клиента одной строкой — чтобы владелец мог связаться сам. */
+export function contactLine(lead) {
+  const { name, method, value } = lead.contact;
+  return value ? `${name}, ${CONTACT_METHODS[method]}: ${value}` : name;
 }

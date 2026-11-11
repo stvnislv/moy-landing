@@ -10,7 +10,7 @@ const OWNER = 288440954;
 const env = { TELEGRAM_BOT_TOKEN: "123456789:AAtest-token-for-unit-tests-only-xxxxx", OWNER_TELEGRAM_ID: String(OWNER), TELEGRAM_WEBHOOK_SECRET: SECRET };
 const NOW = new Date(Date.UTC(2026, 10, 11, 15));
 
-function fakeTelegram({ editError } = {}) {
+function fakeTelegram({ editError, copyError } = {}) {
   const calls = [];
   return {
     calls,
@@ -21,6 +21,12 @@ function fakeTelegram({ editError } = {}) {
       return true;
     },
     async answerCallbackQuery(id, text) { calls.push({ method: "answerCallbackQuery", id, text }); return true; },
+    async copyMessage(chatId, fromChatId, messageId) {
+      calls.push({ method: "copyMessage", chatId, fromChatId, messageId });
+      if (copyError) throw copyError;
+      return { message_id: 900 + calls.length };
+    },
+    async setMessageReaction(chatId, messageId, emoji) { calls.push({ method: "setMessageReaction", chatId, messageId, emoji }); return true; },
   };
 }
 
@@ -122,8 +128,9 @@ test("/start, /help, /contact answer like the old bot; groups are ignored", asyn
   await telegramWebhookHandler(update(msg("/help@stvnislv_bot")), { env, telegram });
   await telegramWebhookHandler(update(msg("/contact")), { env, telegram });
   await telegramWebhookHandler(update(msg("/start", "group")), { env, telegram });
-  await telegramWebhookHandler(update(msg("привет")), { env, telegram });
   assert.equal(telegram.calls.length, 3);
+  await telegramWebhookHandler(update(msg("/unknown")), { env, telegram });
+  assert.equal(telegram.calls.length, 3);                 // незнакомая команда — без ответа
   assert.match(telegram.calls[0].text, /^Привет, Олег &lt;b&gt;!/);
   assert.equal(telegram.calls[0].extra.reply_markup.inline_keyboard[0][0].web_app.url, "https://stvnislv-app.netlify.app/");
   assert.match(telegram.calls[1].text, /Вот что я умею/);
@@ -139,6 +146,7 @@ test("/start l_<token> links the client's chat to the lead and tells the owner",
   assert.match(telegram.calls[0].text, /заявке №1 придёт сюда/);
   assert.equal(telegram.calls[1].chatId, OWNER);
   assert.match(telegram.calls[1].text, /подключил Telegram/);
+  assert.deepEqual((await (await openStore("leads")).get(`tg-msg/${900 + 2}`)).value, { leadId: lead.id });
 
   const leads = await openStore("leads");
   const saved = (await leads.get(`lead/${lead.id}`)).value;
@@ -156,4 +164,100 @@ test("parseCommand", () => {
   assert.deepEqual(parseCommand("/HELP@stvnislv_bot"), ["help", ""]);
   assert.deepEqual(parseCommand("привет"), [null, ""]);
   assert.deepEqual(parseCommand(undefined), [null, ""]);
+});
+
+// ---------- Переписка через бота ----------
+async function linkedLead(chatId = 555) {
+  const lead = await newLead();
+  const telegram = fakeTelegram();
+  await telegramWebhookHandler(update({ message: { text: `/start l_${lead.linkToken}`, chat: { id: chatId, type: "private" }, from: { id: chatId, first_name: "Анна" } } }), { env, telegram, now: NOW });
+  return lead;
+}
+const ownerMsg = (fields) => ({ update_id: 10, message: { message_id: 7001, chat: { id: OWNER, type: "private" }, from: { id: OWNER }, ...fields } });
+const clientMsg = (fields, chatId = 555) => ({ update_id: 11, message: { message_id: 42, chat: { id: chatId, type: "private" }, from: { id: chatId, first_name: "Анна" }, ...fields } });
+
+test("the owner replies to the notification: the answer is copied to the client, saved, and marked 👍", async () => {
+  const lead = await linkedLead();
+  const leads = await openStore("leads");
+  await leads.set("tg-msg/55", { leadId: lead.id });          // уведомление о заявке
+  const telegram = fakeTelegram();
+  await telegramWebhookHandler(update(ownerMsg({ text: "Здравствуйте! Сделаю за неделю.", reply_to_message: { message_id: 55 } })), { env, telegram, now: NOW });
+
+  assert.deepEqual(telegram.calls[0], { method: "copyMessage", chatId: 555, fromChatId: OWNER, messageId: 7001 });
+  assert.deepEqual(telegram.calls[1], { method: "setMessageReaction", chatId: OWNER, messageId: 7001, emoji: "👍" });
+  const saved = (await leads.get(`lead/${lead.id}`)).value;
+  assert.deepEqual(saved.messages, [{ from: "owner", text: "Здравствуйте! Сделаю за неделю.", at: NOW.toISOString() }]);
+});
+
+test("the owner sends a photo reply — it is copied as is", async () => {
+  const lead = await linkedLead();
+  await (await openStore("leads")).set("tg-msg/55", { leadId: lead.id });
+  const telegram = fakeTelegram();
+  await telegramWebhookHandler(update(ownerMsg({ photo: [{ file_id: "x" }], caption: "Макет", reply_to_message: { message_id: 55 } })), { env, telegram, now: NOW });
+  assert.equal(telegram.calls[0].method, "copyMessage");
+  assert.equal((await (await openStore("leads")).get(`lead/${lead.id}`)).value.messages[0].text, "[фото] Макет");
+});
+
+test("owner hints: not a reply, unknown message, client not reachable, client blocked the bot", async () => {
+  const telegram = fakeTelegram();
+  await telegramWebhookHandler(update(ownerMsg({ text: "привет" })), { env, telegram });
+  assert.match(telegram.calls.at(-1).text, /выберите «Ответить»/);
+
+  await telegramWebhookHandler(update(ownerMsg({ text: "ответ", reply_to_message: { message_id: 999 } })), { env, telegram });
+  assert.match(telegram.calls.at(-1).text, /Не нашёл заявку/);
+
+  const siteLead = await newLead();                           // клиент с сайта не подключил Telegram
+  await (await openStore("leads")).set("tg-msg/56", { leadId: siteLead.id });
+  await telegramWebhookHandler(update(ownerMsg({ text: "ответ", reply_to_message: { message_id: 56 } })), { env, telegram });
+  assert.match(telegram.calls.at(-1).text, /нельзя написать через бота.*Анна, Почта: anna@example\.com/s);
+
+  const lead = await linkedLead(777);
+  await (await openStore("leads")).set("tg-msg/57", { leadId: lead.id });
+  const blocked = fakeTelegram({ copyError: new TelegramError("copyMessage", 403, "bot was blocked by the user") });
+  await telegramWebhookHandler(update(ownerMsg({ text: "ответ", reply_to_message: { message_id: 57 } })), { env, telegram: blocked });
+  assert.match(blocked.calls.at(-1).text, /Не доставлено/);
+  assert.equal((await (await openStore("leads")).get(`lead/${lead.id}`)).value.canMessage, false);
+});
+
+test("the client writes to the bot: the owner gets it with the lead number and can reply to it", async () => {
+  const lead = await linkedLead();
+  const telegram = fakeTelegram();
+  await telegramWebhookHandler(update(clientMsg({ text: "А можно <b>быстрее</b>?" })), { env, telegram, now: NOW });
+
+  assert.equal(telegram.calls[0].chatId, OWNER);
+  assert.equal(telegram.calls[0].text, "💬 <b>Заявка №1</b> · Анна\n\nА можно &lt;b&gt;быстрее&lt;/b&gt;?");
+  const leads = await openStore("leads");
+  assert.deepEqual((await leads.get(`tg-msg/${900 + 1}`)).value, { leadId: lead.id });
+  const saved = (await leads.get(`lead/${lead.id}`)).value;
+  assert.equal(saved.unread, true);
+  assert.equal(saved.messages.at(-1).from, "client");
+  assert.equal((await leads.get("index")).value[0].unread, true);
+});
+
+test("the client sends a file: the owner gets a header and a copy, both answerable", async () => {
+  const lead = await linkedLead();
+  const telegram = fakeTelegram();
+  await telegramWebhookHandler(update(clientMsg({ document: { file_id: "f" }, caption: "ТЗ" })), { env, telegram, now: NOW });
+  assert.match(telegram.calls[0].text, /Заявка №1<\/b> · Анна — вложение:/);
+  assert.deepEqual(telegram.calls[1], { method: "copyMessage", chatId: OWNER, fromChatId: 555, messageId: 42 });
+  const leads = await openStore("leads");
+  assert.deepEqual((await leads.get("tg-msg/901")).value, { leadId: lead.id });
+  assert.deepEqual((await leads.get("tg-msg/902")).value, { leadId: lead.id });
+  assert.equal((await leads.get(`lead/${lead.id}`)).value.messages.at(-1).text, "[файл] ТЗ");
+});
+
+test("a Mini App lead links the chat right away; a stranger gets a hint", async () => {
+  const lead = await createLead({
+    serviceId: "apps", task: "Бот", budget: "lt30", deadline: "asap",
+    contact: { name: "Олег", method: "telegram", value: "@oleg_tg" },
+  }, { source: "miniapp", telegramUser: { id: 4242, username: "oleg_tg", firstName: "Олег", allowsWriteToPm: true }, now: NOW, env });
+  const telegram = fakeTelegram();
+  await telegramWebhookHandler(update(clientMsg({ text: "Здравствуйте" }, 4242)), { env, telegram, now: NOW });
+  assert.match(telegram.calls[0].text, /Заявка №1<\/b> · Олег/);
+  assert.equal(lead.number, 1);
+
+  const stranger = fakeTelegram();
+  await telegramWebhookHandler(update(clientMsg({ text: "привет" }, 31337)), { env, telegram: stranger });
+  assert.equal(stranger.calls[0].chatId, 31337);
+  assert.match(stranger.calls[0].text, /оставьте заявку в приложении/);
 });
