@@ -1,4 +1,4 @@
-import { jsonResponse, readJsonBody as readJson, RequestValidationError } from "./http.mjs";
+import { jsonResponse, readJsonBody as readJson, RequestValidationError } from "../../../server/lib/http.mjs";
 
 export { jsonResponse, RequestValidationError };
 export class ConfigurationError extends Error {}

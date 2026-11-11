@@ -17,16 +17,14 @@
 - Статус оплаты меняется только в обработчике webhook после сверки платежа через API ЮKassa; возврат браузера на сайт не считается подтверждением. Статус хранится в Netlify Blobs. Настроить в кабинете ЮKassa webhook URL `/.netlify/functions/yookassa-webhook` и события `payment.succeeded`, `payment.canceled`, `payment.waiting_for_capture`.
 - Не публиковать реальные ключи и не использовать стартовые цены из сайта как сумму оплаты. Перед реальным режимом настроить фискализацию в кабинете ЮKassa.
 
-## Бэкенд заявок — в работе
+## Бэкенд заявок (server/) — в работе
 
-План и этапы — `BACKEND-PLAN.md` (заявки, админка в Mini App, контент, предоплата по заявке). Сделан этап 1: общие модули в `netlify/functions/_shared/`:
-- `http.mjs` — JSON-ответы, разбор тела, CORS;
-- `store.mjs` — **всё хранилище только через него**; драйвер задаёт `STORAGE_DRIVER`: `blobs`, `file` (для будущего VPS), `memory` (тесты). Напрямую `@netlify/blobs` в новом коде не вызывать;
-- `auth.mjs` — проверка Telegram initData и владельца (`OWNER_TELEGRAM_ID`);
-- `validate.mjs` — проверка полей;
-- `telegram.mjs` — Bot API.
+План и этапы — `BACKEND-PLAN.md`. Бэкенд работает на российском VPS (решение владельца 11.11.2026): `server/server.mjs` на `node:http` без зависимостей, за Caddy; данные — JSON-файлами (`STORAGE_DRIVER=file`, `STORAGE_DIR`). Supabase и отдельная база не используются. Заявки, бот и админка — только на VPS; Netlify — статическая копия сайта и старые функции оплаты (ЮKassa отложена).
 
-Проект позже переедет на российский VPS: обработчики пишутся на стандартных `Request` → `Response`, без зависимости от `context` Netlify в логике.
+- `server/lib/`: `http` (ответы, CORS), `store` — **всё хранилище только через него** (драйверы `file`, `blobs`, `memory`), `auth` (Telegram initData, владелец — `OWNER_TELEGRAM_ID`), `validate`, `telegram` (Bot API), `leads`, `ratelimit`, `content`.
+- `server/handlers/`: обработчики `(Request, { ip, env }) → Response`; маршруты — объект `routes` в `server.mjs`.
+- Сделано: этап 1 и сервер этапа 2 (`POST /api/leads`). Формы на сайте и в Mini App — следующий шаг.
+- Проверка на Mac: в `.env` или в окружении задать `STORAGE_DRIVER=file`, `STORAGE_DIR=<абсолютный путь>`, `ALLOWED_ORIGINS=http://localhost:3000`, `IP_HASH_SALT`, `STATIC_ROOT=.`; затем `npm run server` и открыть http://localhost:3000/. Заявка придёт владельцу в Telegram по-настоящему.
 
 ## tg-app/ — Telegram Mini App
 
@@ -52,7 +50,8 @@ Node.js стоит в `~/.local/node`, а не в системе. Перед к�
 - `npm run dev`: сервер разработки на http://localhost:3000
 - `npm run build`: production-сборка, включая проверку типов
 - `npm run typecheck`: только проверка типов
-- `npm test`: тесты в папке серверных функций
+- `npm test`: все тесты (`server/` и `netlify/functions/`), без сети
+- `npm run server`: API-сервер заявок с настройками из `.env` (см. раздел «Бэкенд заявок»)
 - `node scripts/setup-telegram-bot.mjs`: описание, короткое описание и команды бота @stvnislv_bot через Bot API (нужен `TELEGRAM_BOT_TOKEN` в `.env`; `--check` — только показать текущие). Токен не выводит.
 - `node bot/bot.mjs`: бот @stvnislv_bot на Маке (long polling, без сервера): отвечает на /start, /help, /contact; кнопка открывает Mini App по `APP_URL` в начале файла. Остановка — Ctrl+C. Работает, только пока открыт Терминал и Мак не спит. Без внешних библиотек.
 
