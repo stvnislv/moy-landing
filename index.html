@@ -1451,6 +1451,30 @@ html.night .lead-dialog { box-shadow: 0 1px 0 rgb(255 255 255 / 0.08) inset, 0 3
 .actions:has(.sab-btn) { align-items: center; }
 .hero-off :is(.slit-light, .slit-edge, .slit-beam, .hero-bg-img) { animation-play-state: paused; }
 html.night .sab-btn { --sab-strand: #d6d2cb; --sab-strand-hl: rgba(0,0,0,.22); }   /* ночью чёрные нити не видны на тёмном фоне */
+
+/* Шапка: при наведении слова загораются тёплым светом — тем же, что льётся из щели.
+   Днём оттенок темнее (читается на светлом стекле), ночью светлее. Как кнопки в мини-приложении (--lit в tg-app/styles.css). */
+:root { --lit: #c2661a; --lit-glow: rgba(255, 170, 80, 0.55); }
+html.night { --lit: #ffc27a; --lit-glow: rgba(255, 180, 90, 0.75); }
+.header .logo,
+html .header .bar.candy .nav a:not(.btn),
+html .header .mobile-menu a:not(.btn),
+.header .bar-cta {
+  transition: color 250ms ease, text-shadow 250ms ease, background-color 250ms ease;
+}
+.header .logo:is(:hover, :focus-visible),
+html .header .bar.candy .nav a:not(.btn):is(:hover, :focus-visible),
+html.night .header .bar.candy .nav a:not(.btn):is(:hover, :focus-visible),
+html .header .mobile-menu a:not(.btn):is(:hover, :focus-visible),
+html .header .bar-cta:not(#_):is(:hover, :focus-visible) {
+  color: var(--lit);
+  text-shadow: 0 0 14px var(--lit-glow);
+}
+html .header .bar.candy .nav a:not(.btn):is(:hover, :focus-visible),
+html .header .mobile-menu a:not(.btn):is(:hover, :focus-visible) { background: rgba(255, 196, 120, 0.14); }
+html.night .header .bar.candy .nav a:not(.btn):is(:hover, :focus-visible) { background: rgba(255, 180, 90, 0.1); }
+.header .bar-cta svg { transition: filter 250ms ease; }
+.header .bar-cta:is(:hover, :focus-visible) svg { filter: drop-shadow(0 0 6px var(--lit-glow)); }
 </style>
 </head>
 <body>
