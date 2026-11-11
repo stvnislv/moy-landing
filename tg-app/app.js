@@ -632,6 +632,7 @@
 
   let offerSeen = false;
   try { offerSeen = localStorage.getItem(OFFER_KEY) === "1"; } catch { /* нет хранилища — считаем, что не видел */ }
+  if (offer.enabled === false) offerSeen = true;          // окно выключено в data.js
   if (new URLSearchParams(location.search).get("offer") === "1") offerSeen = false;
   // Окно — после того как приложение показалось и приветствие загорелось (~1,4 с), а не поверх пустого экрана.
   // Если сначала показано окно «Привет», оффер ждёт, пока его закроют кнопкой «Начать».

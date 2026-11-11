@@ -1055,6 +1055,13 @@ body { font-size: var(--step-0); }
   .service { grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) 10.5rem; align-items: baseline; padding: 2.25rem 0; }
   .service .price { margin: 0; text-align: right; }
 }
+/* Цена и «Обсудить»: на телефоне под описанием, на широком экране — справа, кнопка под ценой. */
+.service-side { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1.25rem; margin-top: 0.5rem; }
+.service-side .price { margin: 0; }
+.service-cta { min-height: 2.5rem; padding: 0 1.125rem; font-size: 0.9375rem; }
+@media (min-width: 768px) {
+  .service-side { flex-direction: column; align-items: flex-end; margin-top: 0; }
+}
 .note { margin-top: 1.25rem; font-size: var(--step--1); color: var(--muted); }
 
 /* Плашка «Скидка» над услугами: то же объёмное стекло, что у кнопок и шапки (класс candy),
@@ -1132,6 +1139,51 @@ body { font-size: var(--step-0); }
   .work-preview { order: 2; min-height: 15rem; }
   .work-text { padding: 2.25rem; display: flex; flex-direction: column; justify-content: flex-end; }
 }
+/* Миниатюра «Mini App»: телефон с щелью и светом на экране. */
+.work-preview-app::before {
+  top: 14%;
+  width: 7.5rem;
+  max-width: 34%;
+  height: 76%;
+  border-radius: 1.25rem;
+  background: radial-gradient(90% 50% at 50% 26%, rgba(255, 196, 120, 0.45), transparent 70%), linear-gradient(#f3f3f1, #e6e3de);
+  box-shadow: 0 0 0 5px #0b0b0b, 0 0 0 6px rgba(255, 255, 255, 0.12), 0 24px 40px -10px rgba(0, 0, 0, 0.7);
+}
+.work-preview-app::after {
+  top: calc(14% + 22%);
+  width: 3.5rem;
+  max-width: 16%;
+  height: 2px;
+  clip-path: none;
+  background: #19191b;
+  -webkit-mask-image: none;
+  mask-image: none;
+  filter: none;
+  box-shadow: 0 6px 12px rgba(255, 170, 80, 0.7);
+}
+/* Миниатюра «бот»: две реплики переписки — входящая слева, ответ справа тёплым цветом. */
+.work-preview-bot::before,
+.work-preview-bot::after {
+  width: 46%;
+  height: 2.75rem;
+  translate: none;
+  border-radius: 1.125rem;
+  clip-path: none;
+  -webkit-mask-image: none;
+  mask-image: none;
+  filter: none;
+  box-shadow: none;
+}
+.work-preview-bot::before { left: 12%; top: 26%; border-bottom-left-radius: 0.375rem; background: rgba(255, 255, 255, 0.14); }
+.work-preview-bot::after {
+  left: auto;
+  right: 12%;
+  top: auto;
+  bottom: 24%;
+  border-bottom-right-radius: 0.375rem;
+  background: linear-gradient(180deg, #f2b46c, #d98a3d);
+  box-shadow: 0 10px 24px -8px rgba(255, 170, 80, 0.6);
+}
 .work-invite {
   display: flex;
   flex-wrap: wrap;
@@ -1199,6 +1251,11 @@ html.night .step-number { color: #e9b276; }
   text-wrap: pretty;
 }
 @media (min-width: 640px) { .hero { padding-bottom: 3.5rem; } }
+/* Телефон: картинка первого экрана ниже (не на всю высоту окна) — текст и кнопки начинаются сразу под щелью.
+   Высоту задаёт содержимое: отступ сверху до текста фиксированный, щель скрипт пересчитывает под размер картинки. */
+@media (max-width: 639.98px) {
+  .hero { min-height: 0; padding-top: 12.5rem; padding-bottom: 4.5rem; }
+}
 
 /* Первый экран — всё для связи: слева текст, Telegram и контакты, справа (на компьютере) форма заявки. */
 .hero-inner { position: relative; z-index: 1; width: 100%; }
@@ -1622,15 +1679,35 @@ const site = {
     },
   ],
 
-  // Стеклянная плашка над списком услуг. Пустая строка — плашки нет.
-  discount: "Скидка 5%",
+  // Стеклянная плашка над списком услуг. Пустая строка — плашки нет (скидку убрали 11 ноября 2026).
+  discount: "",
 
-  // Работы. Новый проект: { title, description, image: "works/имя.jpg", url: "https://…" }.
+  // Форма тестовой оплаты ЮKassa в разделе услуг. false — формы на сайте нет (код оплаты и функции Netlify остаются).
+  // Включать, когда будет готова оплата по заявке (BACKEND-PLAN.md, этап 6).
+  payment: false,
+
+  // Работы. Новый проект: { title, description, image: "works/имя.jpg", url: "https://…", linkText: "Открыть проект" }.
+  // Без картинки рисуется миниатюра preview: "site" (щель и свет), "app" (телефон) или "bot" (переписка).
   // Пока работ меньше трёх, остальные места занимают карточки «Здесь будет ваш проект».
   portfolio: [
     {
       title: "Этот сайт",
       description: "Лендинг-портфолио: светлая и тёмная тема, стекло и живой свет.",
+      preview: "site",
+    },
+    {
+      title: "Telegram Mini App",
+      description: "Мини-приложение внутри Telegram: услуги и цены, работы и заявка в пару касаний.",
+      preview: "app",
+      url: "https://stvnislv-app.netlify.app/",
+      linkText: "Открыть приложение",
+    },
+    {
+      title: "Telegram-бот @stvnislv_bot",
+      description: "Открывает мини-приложение, принимает заявки и сразу передаёт их мне, а мои ответы — клиенту.",
+      preview: "bot",
+      url: "https://t.me/stvnislv_bot",
+      linkText: "Открыть бота",
     },
   ],
 
@@ -1744,7 +1821,7 @@ const links = [
   ["#about", "Обо мне"],
   ["#services", "Услуги"],
   ["#works", "Работы"],
-  ["#lead", "Заявка"],     // открывает окно с формой заявки (контакты — строкой на первом экране и в подвале)
+  ["#lead", "Оставить заявку"],   // открывает окно с формой заявки (контакты — строкой на первом экране и в подвале)
 ];
 const [desktopNav, mobileNav] = document.querySelectorAll("[data-nav]");
 for (const nav of [desktopNav, mobileNav]) {
@@ -1755,7 +1832,7 @@ for (const nav of [desktopNav, mobileNav]) {
     nav.append(a);
   }
 }
-desktopNav.append(makeTelegramButton(el("a", "btn bar-cta", "Написать")));
+desktopNav.append(makeTelegramButton(el("a", "btn bar-cta", "Написать в Telegram")));
 mobileNav.append(makeTelegramButton(el("a", "btn btn-primary", "Написать в Telegram")));
 
 const menuButton = document.querySelector(".menu-button");
@@ -1784,109 +1861,122 @@ else discountBadge.remove();
 const services = document.querySelector("[data-services]");
 for (const service of site.services) {
   const row = el("li", "service");
+  // Справа — цена и «Обсудить»: кнопка открывает окно заявки с уже выбранной услугой.
+  const side = el("div", "service-side");
+  const discuss = el("button", "btn candy service-cta", "Обсудить");
+  discuss.type = "button";
+  discuss.dataset.leadOpen = "";
+  discuss.dataset.service = service.id;
+  discuss.setAttribute("aria-label", `Обсудить: ${service.title}`);
+  side.append(el("p", "price", formatPrice(service.priceFrom)), discuss);
   row.append(
     el("h3", "service-title", service.title),
     el("p", "service-desc", service.description),
-    el("p", "price", formatPrice(service.priceFrom)),
+    side,
   );
   services.append(row);
 }
 
-// Оплата доступна только на размещённом сайте с настроенными Netlify Functions.
-const paymentForm = document.querySelector("#payment-form");
-const paymentStatus = document.querySelector("[data-payment-status]");
-const paymentButton = paymentForm.querySelector("[type=submit]");
-const paymentMessages = {
-  name: "Укажите имя (не более 100 символов).",
-  email: "Укажите корректный адрес электронной почты.",
-};
+// Оплата (тестовая ЮKassa) — только если site.payment включён. Иначе форма убирается со страницы.
+if (!site.payment) {
+  document.querySelector(".payment-block").remove();
+} else {
+  // Оплата доступна только на размещённом сайте с настроенными Netlify Functions.
+  const paymentForm = document.querySelector("#payment-form");
+  const paymentStatus = document.querySelector("[data-payment-status]");
+  const paymentButton = paymentForm.querySelector("[type=submit]");
+  const paymentMessages = {
+    name: "Укажите имя (не более 100 символов).",
+    email: "Укажите корректный адрес электронной почты.",
+  };
 
-// Ошибка с понятным текстом для посетителя (от нашего сервера или проверки ссылки).
-class PaymentError extends Error {}
+  // Ошибка с понятным текстом для посетителя (от нашего сервера или проверки ссылки).
+  class PaymentError extends Error {}
 
-function showPaymentStatus(message) {
-  paymentStatus.textContent = message;
-  paymentStatus.hidden = false;
-}
-
-for (const [field, message] of Object.entries(paymentMessages)) {
-  const input = paymentForm.elements[field];
-  input.addEventListener("input", () => input.setCustomValidity(""));
-  input.addEventListener("invalid", () => {
-    if (!input.value.trim()) input.setCustomValidity(message);
-  });
-}
-
-async function waitForPaymentWebhook(orderId) {
-  paymentForm.hidden = true;
-  showPaymentStatus("Платёж создан. Ждём подтверждение ЮKassa…");
-  paymentStatus.focus();
-
-  for (let attempt = 0; attempt < 60; attempt += 1) {
-    if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 3000));
-
-    try {
-      const response = await fetch(`/.netlify/functions/payment-status?orderId=${encodeURIComponent(orderId)}`, {
-        cache: "no-store",
-      });
-      if (!response.ok) throw new Error("Не удалось получить статус платежа.");
-      const result = await response.json();
-
-      if (result.status === "succeeded") {
-        showPaymentStatus("Оплата подтверждена.");
-        return;
-      }
-      if (result.status === "canceled" || result.status === "failed") {
-        showPaymentStatus(result.status === "canceled" ? "Платёж отменён." : "Не удалось создать платёж.");
-        paymentForm.hidden = false;
-        return;
-      }
-    } catch {
-      showPaymentStatus("Ждём подтверждение ЮKassa. Статус обновится автоматически.");
-    }
+  function showPaymentStatus(message) {
+    paymentStatus.textContent = message;
+    paymentStatus.hidden = false;
   }
 
-  showPaymentStatus("Подтверждение пока не получено. Обновите страницу позже, чтобы проверить статус.");
-}
-
-paymentForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
   for (const [field, message] of Object.entries(paymentMessages)) {
     const input = paymentForm.elements[field];
-    input.setCustomValidity(input.value.trim() ? "" : message);
-  }
-  if (!paymentForm.reportValidity()) return;
-
-  paymentButton.disabled = true;
-  paymentButton.textContent = "Создаю платёж…";
-  showPaymentStatus("");
-
-  try {
-    const response = await fetch("/.netlify/functions/create-payment", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: paymentForm.elements.name.value.trim(),
-        email: paymentForm.elements.email.value.trim(),
-      }),
+    input.addEventListener("input", () => input.setCustomValidity(""));
+    input.addEventListener("invalid", () => {
+      if (!input.value.trim()) input.setCustomValidity(message);
     });
-    const result = await response.json();
-    if (!response.ok) throw new PaymentError(result.error || "Не удалось создать платёж.");
-
-    const confirmationUrl = new URL(result.confirmationUrl);
-    if (confirmationUrl.protocol !== "https:") throw new PaymentError("ЮKassa вернула некорректную ссылку.");
-    window.location.assign(confirmationUrl.href);
-  } catch (error) {
-    // Свои сообщения показываем как есть; системные (нет сети, ответ не JSON) — общим текстом по-русски.
-    showPaymentStatus(error instanceof PaymentError ? error.message : "Не удалось связаться с сервером оплаты. Попробуйте позже.");
-    paymentButton.disabled = false;
-    paymentButton.textContent = "Оплатить согласованную услугу";
   }
-});
 
-const returnedOrderId = new URLSearchParams(window.location.search).get("payment");
-if (returnedOrderId && /^[0-9a-f-]{36}$/i.test(returnedOrderId)) {
-  waitForPaymentWebhook(returnedOrderId);
+  async function waitForPaymentWebhook(orderId) {
+    paymentForm.hidden = true;
+    showPaymentStatus("Платёж создан. Ждём подтверждение ЮKassa…");
+    paymentStatus.focus();
+
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 3000));
+
+      try {
+        const response = await fetch(`/.netlify/functions/payment-status?orderId=${encodeURIComponent(orderId)}`, {
+          cache: "no-store",
+        });
+        if (!response.ok) throw new Error("Не удалось получить статус платежа.");
+        const result = await response.json();
+
+        if (result.status === "succeeded") {
+          showPaymentStatus("Оплата подтверждена.");
+          return;
+        }
+        if (result.status === "canceled" || result.status === "failed") {
+          showPaymentStatus(result.status === "canceled" ? "Платёж отменён." : "Не удалось создать платёж.");
+          paymentForm.hidden = false;
+          return;
+        }
+      } catch {
+        showPaymentStatus("Ждём подтверждение ЮKassa. Статус обновится автоматически.");
+      }
+    }
+
+    showPaymentStatus("Подтверждение пока не получено. Обновите страницу позже, чтобы проверить статус.");
+  }
+
+  paymentForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    for (const [field, message] of Object.entries(paymentMessages)) {
+      const input = paymentForm.elements[field];
+      input.setCustomValidity(input.value.trim() ? "" : message);
+    }
+    if (!paymentForm.reportValidity()) return;
+
+    paymentButton.disabled = true;
+    paymentButton.textContent = "Создаю платёж…";
+    showPaymentStatus("");
+
+    try {
+      const response = await fetch("/.netlify/functions/create-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: paymentForm.elements.name.value.trim(),
+          email: paymentForm.elements.email.value.trim(),
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new PaymentError(result.error || "Не удалось создать платёж.");
+
+      const confirmationUrl = new URL(result.confirmationUrl);
+      if (confirmationUrl.protocol !== "https:") throw new PaymentError("ЮKassa вернула некорректную ссылку.");
+      window.location.assign(confirmationUrl.href);
+    } catch (error) {
+      // Свои сообщения показываем как есть; системные (нет сети, ответ не JSON) — общим текстом по-русски.
+      showPaymentStatus(error instanceof PaymentError ? error.message : "Не удалось связаться с сервером оплаты. Попробуйте позже.");
+      paymentButton.disabled = false;
+      paymentButton.textContent = "Оплатить согласованную услугу";
+    }
+  });
+
+  const returnedOrderId = new URLSearchParams(window.location.search).get("payment");
+  if (returnedOrderId && /^[0-9a-f-]{36}$/i.test(returnedOrderId)) {
+    waitForPaymentWebhook(returnedOrderId);
+  }
 }
 
 // Работы
@@ -1895,8 +1985,8 @@ for (const work of site.portfolio) {
   const card = el("li", "card work work-feature glass");
   const text = el("div", "work-text");
   if (!work.image) {
-    // Пока нет скриншота, вместо него — миниатюра первого экрана: щель и тёплый свет.
-    const preview = el("div", "work-preview");
+    // Пока нет скриншота — нарисованная миниатюра: щель и свет, телефон или переписка.
+    const preview = el("div", `work-preview work-preview-${work.preview || "site"}`);
     preview.setAttribute("aria-hidden", "true");
     card.append(preview);
   }
@@ -1910,7 +2000,7 @@ for (const work of site.portfolio) {
   text.append(el("h3", "", work.title), el("p", "desc", work.description));
   card.append(text);
   if (work.url) {
-    const a = el("a", "work-link", "Открыть проект");
+    const a = el("a", "work-link", work.linkText || "Открыть проект");
     a.href = work.url;
     a.target = "_blank";
     a.rel = "noopener noreferrer";
@@ -1921,10 +2011,10 @@ for (const work of site.portfolio) {
 // Одно приглашение вместо пустых карточек.
 {
   const invite = el("li", "work-invite");
-  invite.append(
-    el("p", "work-invite-text", "Следующим здесь может быть ваш проект."),
-    linkToTelegram(el("a", "btn glass", "Обсудить")),
-  );
+  const inviteButton = el("button", "btn glass", "Оставить заявку");   // открывает окно заявки
+  inviteButton.type = "button";
+  inviteButton.dataset.leadOpen = "";
+  invite.append(el("p", "work-invite-text", "Следующим здесь может быть ваш проект."), inviteButton);
   works.append(invite);
 }
 
@@ -1999,10 +2089,16 @@ site.steps.forEach((step, i) => {
     event?.preventDefault();
     if (panel.open) return;
     opener = event?.currentTarget ?? null;
+    // «Обсудить» под услугой — эта услуга уже выбрана в форме.
+    const service = opener?.dataset?.service;
+    if (service && !form.hidden) {
+      fields.serviceId.value = service;
+      fields.serviceId.setCustomValidity("");
+    }
     panel.showModal();                                 // поверх всего сайта, фон затемняется, Esc закрывает
     document.documentElement.classList.add("sheet-open");   // страница под окном не прокручивается
     panel.querySelector(".lead-dialog-body").scrollTop = 0;
-    (form.hidden ? done : fields.serviceId).focus({ preventScroll: true });
+    (form.hidden ? done : service ? fields.task : fields.serviceId).focus({ preventScroll: true });
   }
   panel.addEventListener("close", () => {
     document.documentElement.classList.remove("sheet-open");
