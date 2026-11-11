@@ -17,6 +17,17 @@
 - Статус оплаты меняется только в обработчике webhook после сверки платежа через API ЮKassa; возврат браузера на сайт не считается подтверждением. Статус хранится в Netlify Blobs. Настроить в кабинете ЮKassa webhook URL `/.netlify/functions/yookassa-webhook` и события `payment.succeeded`, `payment.canceled`, `payment.waiting_for_capture`.
 - Не публиковать реальные ключи и не использовать стартовые цены из сайта как сумму оплаты. Перед реальным режимом настроить фискализацию в кабинете ЮKassa.
 
+## Бэкенд заявок — в работе
+
+План и этапы — `BACKEND-PLAN.md` (заявки, админка в Mini App, контент, предоплата по заявке). Сделан этап 1: общие модули в `netlify/functions/_shared/`:
+- `http.mjs` — JSON-ответы, разбор тела, CORS;
+- `store.mjs` — **всё хранилище только через него**; драйвер задаёт `STORAGE_DRIVER`: `blobs`, `file` (для будущего VPS), `memory` (тесты). Напрямую `@netlify/blobs` в новом коде не вызывать;
+- `auth.mjs` — проверка Telegram initData и владельца (`OWNER_TELEGRAM_ID`);
+- `validate.mjs` — проверка полей;
+- `telegram.mjs` — Bot API.
+
+Проект позже переедет на российский VPS: обработчики пишутся на стандартных `Request` → `Response`, без зависимости от `context` Netlify в логике.
+
 ## tg-app/ — Telegram Mini App
 
 Мини-приложение по разделу 11 брифа: HTML, CSS и JS без сборки, точка входа `tg-app/index.html`. Устройство, навигация и где менять данные — в `tg-app/CLAUDE.md`. Тексты и цены лежат отдельно от сайта, в `tg-app/data.js`. Опубликовано отдельным сайтом Netlify: https://stvnislv-app.netlify.app/ (выкладывается вручную через Netlify CLI, не через push; как — в `tg-app/CLAUDE.md`). Основной сайт после push тоже копирует папку в `/tg-app/`.

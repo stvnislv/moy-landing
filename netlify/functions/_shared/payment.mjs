@@ -1,5 +1,7 @@
+import { jsonResponse, readJsonBody as readJson, RequestValidationError } from "./http.mjs";
+
+export { jsonResponse, RequestValidationError };
 export class ConfigurationError extends Error {}
-export class RequestValidationError extends Error {}
 
 const ORDER_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -82,21 +84,9 @@ export function validateCheckoutData(value) {
   return { name, email };
 }
 
-export async function readJsonBody(request) {
-  if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) {
-    throw new RequestValidationError("Ожидается JSON.");
-  }
-
-  const body = await request.text();
-  if (new TextEncoder().encode(body).byteLength > 4096) {
-    throw new RequestValidationError("Форма слишком большая.");
-  }
-  try {
-    return JSON.parse(body);
-  } catch (error) {
-    if (error instanceof SyntaxError) throw new RequestValidationError("Некорректный JSON.");
-    throw error;
-  }
+// Форма оплаты маленькая: тело не больше 4 КБ.
+export function readJsonBody(request) {
+  return readJson(request, { maxBytes: 4096 });
 }
 
 export function isOrderId(value) {
@@ -113,14 +103,4 @@ export function toKopeks(amount) {
   const match = /^(0|[1-9]\d*)(?:\.(\d{1,2}))?$/.exec(amount);
   if (!match) return null;
   return (BigInt(match[1]) * 100n) + BigInt((match[2] ?? "").padEnd(2, "0") || "0");
-}
-
-export function jsonResponse(body, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      "Cache-Control": "no-store",
-      "Content-Type": "application/json; charset=utf-8",
-    },
-  });
 }
