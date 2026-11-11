@@ -25,8 +25,8 @@
 - `netlify/functions/<имя>.mjs` — тонкая обёртка над обработчиком с `export const config = { path: "/api/…" }`.
 - Supabase: проект `isbwhkbliietwvgpofip` (East US, Ohio). Только секретный ключ на сервере (`SUPABASE_SECRET_KEY`), без `@supabase/supabase-js` — REST через `fetch`. Публичный ключ не используется, в браузер Supabase не подключается.
 - Сделано: этап 1, этап 2 (`POST /api/leads`, формы на сайте и в Mini App, `privacy.html` — черновик), из этапа 3 — `POST /api/telegram` (кнопки статуса под уведомлением, `/start`, `/help`, `/contact`, `/start l_<токен>`).
-- Бот: пока webhook не подключён, на команды отвечает `bot/bot.mjs` на Маке, а кнопки статуса не работают. После публикации — `node scripts/setup-telegram-bot.mjs --webhook` (бот переезжает на сервер, `bot/bot.mjs` больше не нужен); вернуть — `--polling`.
-- Переменные Netlify для функций: `STORAGE_DRIVER=supabase`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `TELEGRAM_BOT_TOKEN`, `OWNER_TELEGRAM_ID`, `TELEGRAM_WEBHOOK_SECRET`, `IP_HASH_SALT`, `ALLOWED_ORIGINS`. Значения — в локальном `.env`.
+- Бот работает на сервере: webhook подключён 11.11.2026 к https://stvnislv.netlify.app/api/telegram. `bot/bot.mjs` больше не нужен (при включённом webhook он сам останавливается); вернуть его — `node scripts/setup-telegram-bot.mjs --polling`, проверить состояние — `--check`.
+- Переменные Netlify (внесены 11.11.2026, секреты отмечены как секретные, действуют на рабочем сайте): `STORAGE_DRIVER=supabase`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `TELEGRAM_BOT_TOKEN`, `OWNER_TELEGRAM_ID`, `TELEGRAM_WEBHOOK_SECRET`, `IP_HASH_SALT`, `ALLOWED_ORIGINS`. Значения — в локальном `.env`.
 - Проверка на Mac: в `.env` задать `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `ALLOWED_ORIGINS=http://localhost:3000`, `IP_HASH_SALT`, `STATIC_ROOT=.`; затем `npm run server` и открыть http://localhost:3000/. Заявка запишется в Supabase и придёт владельцу в Telegram по-настоящему.
 
 ## tg-app/ — Telegram Mini App
