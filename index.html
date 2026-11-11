@@ -1097,15 +1097,11 @@ body { font-size: var(--step-0); }
 }
 
 /* Работы */
-/* Работы: три скриншота одного размера в ряд на всю ширину (на телефоне — друг под другом), подписи под ними. */
-.works { margin-top: 2.5rem; display: grid; gap: 2.5rem; }
-@media (min-width: 640px) {
-  .works { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2.5rem 1.5rem; align-items: start; }
-  .works > .work-invite { grid-column: 1 / -1; }
-}
-.split#works { display: block; }                    /* заголовок сверху, скриншоты — на всю ширину под ним */
-.work-feature { display: flex; flex-direction: column; gap: 1rem; }
-.work-text { padding: 0 0.25rem; }
+/* Работы: карточки друг под другом — текст и скриншот рядом (на телефоне скриншот сверху, текст под ним).
+   Без рамки и подложки; окна скриншотов одного размера у всех трёх. */
+.works { margin-top: 2.5rem; display: grid; gap: 3rem; }
+.work-feature { display: grid; gap: 1.25rem; }
+.work-text { padding: 0 0.25rem; min-height: 10.75rem; }   /* одна высота у всех карточек на телефоне */
 .work-feature h3 { font-size: var(--step-1); font-weight: 500; letter-spacing: -0.02em; }
 .work-feature .desc { margin-top: 0.5rem; color: var(--muted); max-width: 36ch; line-height: 1.6; }
 /* Миниатюра первого экрана: щель и тёплый треугольник света на тёмном титане. */
@@ -1140,7 +1136,12 @@ body { font-size: var(--step-0); }
   mask-image: linear-gradient(#000, transparent);
   filter: blur(8px);
 }
-.work-preview { aspect-ratio: 3 / 4; min-height: 0; border-radius: var(--radius-card); overflow: hidden; }
+.work-preview { height: 21rem; min-height: 0; border-radius: var(--radius-card); overflow: hidden; }
+@media (min-width: 768px) {
+  .work-feature { grid-template-columns: minmax(0, 0.75fr) minmax(0, 1.25fr); gap: 2.25rem; align-items: center; }
+  .work-text { padding: 0; min-height: 0; }
+  .work-preview, .work-shot { order: 2; height: 20rem; }
+}
 /* Миниатюра «Mini App»: телефон с щелью и светом на экране. */
 .work-preview-app::before {
   top: 14%;
@@ -1186,17 +1187,18 @@ body { font-size: var(--step-0); }
   background: linear-gradient(180deg, #f2b46c, #d98a3d);
   box-shadow: 0 10px 24px -8px rgba(255, 170, 80, 0.6);
 }
-/* Скриншот работы — сам скриншот, без подложки: одно окно 3:4 у всех, картинка на всю ширину окна.
+/* Скриншот работы — сам скриншот, без подложки: окно одного размера у всех, картинка на всю ширину окна.
    Наведение (или касание на телефоне) — класс is-scrolling: картинка медленно едет вверх на --shift за --dur
    (их считает скрипт); без класса — плавно возвращается. */
 .work-shot {
   position: relative;
-  aspect-ratio: 3 / 4;
+  height: 21rem;
   overflow: hidden;
   border-radius: var(--radius-card);
   box-shadow: 0 0 0 1px rgba(25, 25, 27, 0.07), 0 20px 44px -18px rgba(25, 20, 15, 0.32);
 }
 html.night .work-shot { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 20px 44px -18px rgba(0, 0, 0, 0.7); }
+@media (min-width: 768px) { .work-shot { height: 20rem; } }
 .work-shot img {
   position: absolute;
   top: 0;
@@ -1305,6 +1307,25 @@ html.night .step-number { color: #e9b276; }
 @media (max-width: 639.98px) {
   .hero { min-height: 0; padding-top: 12.5rem; padding-bottom: 4.5rem; }
 }
+
+/* Первый экран по центру, прямо под лампой: заголовок, текст, кнопки и контакты — одной колонкой.
+   Размеры шрифтов и кнопок те же; меняются только выравнивание и отступы.
+   На компьютере блок начинается под щелью (её высоту --slit-y считает скрипт) с запасом, чтобы свет падал на текст. */
+.hero-text { text-align: center; }
+.hero h1 { margin: 0 auto; }
+.hero-sub { margin: 1.125rem auto 0; max-width: 38ch; text-wrap: balance; }
+.hero-text .actions { justify-content: center; margin-top: 2.25rem; }
+.hero-contacts { justify-content: center; margin-top: 1.5rem; }
+@media (min-width: 640px) {
+  .hero { align-items: flex-start; padding-top: calc(var(--slit-y, 26vh) + clamp(3.5rem, 11vh, 7rem)); }
+}
+@media (max-width: 639.98px) {
+  .hero { padding-top: 14.5rem; }
+  .hero-text .actions { flex-direction: column; align-items: center; }
+}
+/* Ночью текст стоит прямо в ярком луче — серый там плохо читается, делаем светлее. */
+html.night .hero-sub,
+html.night .hero-contacts { color: rgba(237, 235, 231, 0.86); }
 
 /* Первый экран — всё для связи: слева текст, Telegram и контакты, справа (на компьютере) форма заявки. */
 .hero-inner { position: relative; z-index: 1; width: 100%; }
