@@ -17,14 +17,15 @@
 - Статус оплаты меняется только в обработчике webhook после сверки платежа через API ЮKassa; возврат браузера на сайт не считается подтверждением. Статус хранится в Netlify Blobs. Настроить в кабинете ЮKassa webhook URL `/.netlify/functions/yookassa-webhook` и события `payment.succeeded`, `payment.canceled`, `payment.waiting_for_capture`.
 - Не публиковать реальные ключи и не использовать стартовые цены из сайта как сумму оплаты. Перед реальным режимом настроить фискализацию в кабинете ЮKassa.
 
-## Бэкенд заявок (server/) — в работе
+## Бэкенд заявок — в работе
 
-План и этапы — `BACKEND-PLAN.md`. Бэкенд работает на российском VPS (решение владельца 11.11.2026): `server/server.mjs` на `node:http` без зависимостей, за Caddy; данные — JSON-файлами (`STORAGE_DRIVER=file`, `STORAGE_DIR`). Supabase и отдельная база не используются. Заявки, бот и админка — только на VPS; Netlify — статическая копия сайта и старые функции оплаты (ЮKassa отложена).
+План и этапы — `BACKEND-PLAN.md`. Решение владельца 11.11.2026: **данные в Supabase** (одна таблица `kv`, `supabase/schema.sql`), **функции — Netlify** (`netlify/functions/`). VPS не арендован; на возможный переезд в Россию в коде оставлены драйвер `file` и сервер `server/server.mjs`.
 
-- `server/lib/`: `http` (ответы, CORS), `store` — **всё хранилище только через него** (драйверы `file`, `blobs`, `memory`), `auth` (Telegram initData, владелец — `OWNER_TELEGRAM_ID`), `validate`, `telegram` (Bot API), `leads`, `ratelimit`, `content`.
-- `server/handlers/`: обработчики `(Request, { ip, env }) → Response`; маршруты — объект `routes` в `server.mjs`.
+- Логика — в `server/`: `handlers/` — обработчики `(Request, { ip, env }) → Response`; `lib/` — `http` (ответы, CORS), `store` — **всё хранилище только через него** (драйверы `supabase` — основной, `file`, `blobs`, `memory` — тесты), `auth` (Telegram initData, владелец — `OWNER_TELEGRAM_ID`), `validate`, `telegram` (Bot API), `leads`, `ratelimit`, `content`.
+- `netlify/functions/<имя>.mjs` — тонкая обёртка над обработчиком с `export const config = { path: "/api/…" }`.
+- Supabase: проект `isbwhkbliietwvgpofip` (East US, Ohio). Только секретный ключ на сервере (`SUPABASE_SECRET_KEY`), без `@supabase/supabase-js` — REST через `fetch`. Публичный ключ не используется, в браузер Supabase не подключается.
 - Сделано: этап 1 и сервер этапа 2 (`POST /api/leads`). Формы на сайте и в Mini App — следующий шаг.
-- Проверка на Mac: в `.env` или в окружении задать `STORAGE_DRIVER=file`, `STORAGE_DIR=<абсолютный путь>`, `ALLOWED_ORIGINS=http://localhost:3000`, `IP_HASH_SALT`, `STATIC_ROOT=.`; затем `npm run server` и открыть http://localhost:3000/. Заявка придёт владельцу в Telegram по-настоящему.
+- Проверка на Mac: в `.env` задать `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `ALLOWED_ORIGINS=http://localhost:3000`, `IP_HASH_SALT`, `STATIC_ROOT=.`; затем `npm run server` и открыть http://localhost:3000/. Заявка запишется в Supabase и придёт владельцу в Telegram по-настоящему.
 
 ## tg-app/ — Telegram Mini App
 

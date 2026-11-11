@@ -84,9 +84,10 @@ test("static files: only the site, privacy page and tg-app; no traversal, no sec
 });
 
 test("checkEnv lists missing settings", () => {
-  assert.equal(checkEnv({}).length, 6);
-  assert.deepEqual(checkEnv({
-    STORAGE_DRIVER: "file", STORAGE_DIR: "/var/lib/stvnislv", TELEGRAM_BOT_TOKEN: "x", OWNER_TELEGRAM_ID: "1",
-    ALLOWED_ORIGINS: "https://a.b", IP_HASH_SALT: "s",
-  }), []);
+  assert.equal(checkEnv({}).length, 5);
+  const common = { TELEGRAM_BOT_TOKEN: "x", OWNER_TELEGRAM_ID: "1", ALLOWED_ORIGINS: "https://a.b", IP_HASH_SALT: "s" };
+  assert.deepEqual(checkEnv({ ...common, STORAGE_DRIVER: "file", STORAGE_DIR: "/var/lib/stvnislv" }), []);
+  assert.deepEqual(checkEnv({ ...common, SUPABASE_URL: "https://a.supabase.co", SUPABASE_SECRET_KEY: "sb_secret_x" }), []);
+  assert.match(checkEnv({ ...common, STORAGE_DRIVER: "file" })[0], /STORAGE_DIR/);
+  assert.match(checkEnv({ ...common, STORAGE_DRIVER: "mongo" })[0], /supabase или file/);
 });

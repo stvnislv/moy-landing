@@ -4,7 +4,8 @@
 // Запуск на Mac из корня проекта:
 //   export PATH=~/.local/node/bin:$PATH
 //   npm run server            — то же, что node --env-file=.env server/server.mjs
-// Нужны в .env: STORAGE_DRIVER=file, STORAGE_DIR=<абсолютный путь>, TELEGRAM_BOT_TOKEN, OWNER_TELEGRAM_ID,
+// Сейчас основной сервер — Netlify Functions (netlify/functions/), этот файл — для проверки на Mac и будущего VPS.
+// Нужны в .env: SUPABASE_URL и SUPABASE_SECRET_KEY (или STORAGE_DRIVER=file и STORAGE_DIR), TELEGRAM_BOT_TOKEN, OWNER_TELEGRAM_ID,
 // ALLOWED_ORIGINS (для проверки на Mac добавить http://localhost:3000), IP_HASH_SALT.
 
 import http from "node:http";
@@ -127,8 +128,10 @@ export function createServer(env = process.env) {
 /** Проверка настроек при запуске: лучше упасть сразу, чем на первой заявке. */
 export function checkEnv(env = process.env) {
   const problems = [];
-  if (env.STORAGE_DRIVER !== "file") problems.push("STORAGE_DRIVER должен быть file");
-  if (!env.STORAGE_DIR || !path.isAbsolute(env.STORAGE_DIR)) problems.push("STORAGE_DIR — абсолютный путь к папке данных");
+  const driver = env.STORAGE_DRIVER ?? "supabase";
+  if (driver === "file" && (!env.STORAGE_DIR || !path.isAbsolute(env.STORAGE_DIR))) problems.push("STORAGE_DIR — абсолютный путь к папке данных");
+  else if (driver === "supabase" && (!env.SUPABASE_URL?.trim() || !env.SUPABASE_SECRET_KEY?.trim())) problems.push("не заданы SUPABASE_URL и SUPABASE_SECRET_KEY");
+  else if (!["file", "supabase"].includes(driver)) problems.push("STORAGE_DRIVER: supabase или file");
   for (const name of ["TELEGRAM_BOT_TOKEN", "OWNER_TELEGRAM_ID", "ALLOWED_ORIGINS", "IP_HASH_SALT"]) {
     if (!env[name]?.trim()) problems.push(`не задан ${name}`);
   }

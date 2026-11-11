@@ -2,9 +2,10 @@
 // меняется только выбор драйвера в STORAGE_DRIVER, код заявок, контента и оплаты не трогается.
 //
 // Драйверы:
-//   blobs  — Netlify Blobs (по умолчанию, на Netlify);
-//   file   — JSON-файлы в папке STORAGE_DIR (для VPS: один процесс Node, атомарная запись через rename);
-//   memory — в памяти, для тестов.
+//   supabase — таблица kv в Supabase (основной, по умолчанию; SUPABASE_URL, SUPABASE_SECRET_KEY);
+//   file     — JSON-файлы в папке STORAGE_DIR (на будущее — российский VPS: один процесс Node, запись через rename);
+//   blobs    — Netlify Blobs (запасной);
+//   memory   — в памяти, для тестов.
 //
 // Интерфейс хранилища (одного «раздела», например leads или content):
 //   get(key)                         → { value, etag } | null
@@ -180,6 +181,111 @@ export function createBlobsStore(blobStore) {
   };
 }
 
+// ---------- Supabase (PostgREST) ----------
+// Таблица (supabase/schema.sql): kv(store, key, value jsonb, etag uuid, updated_at), первичный ключ (store, key).
+// Доступ только с секретным ключом на сервере; в браузер ключ не попадает. Без библиотек — обычный fetch.
+export class SupabaseError extends Error {
+  constructor(status, code) {
+    super(`Supabase: ${status}${code ? ` ${code}` : ""}`);
+    this.status = status;
+    this.code = code;
+  }
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const PAGE = 1000;
+
+export function createSupabaseStore({ url, secretKey, table = "kv", store, fetchImpl = globalThis.fetch }) {
+  const base = `${url.replace(/\/$/, "")}/rest/v1/${table}`;
+  const auth = { apikey: secretKey };
+  // Старый ключ service_role — это JWT, его нужно передать и в Authorization. Новый sb_secret_… — только в apikey.
+  if (secretKey.startsWith("eyJ")) auth.Authorization = `Bearer ${secretKey}`;
+  const eq = (value) => `eq.${encodeURIComponent(value)}`;
+  const where = (key) => `store=${eq(store)}&key=${eq(key)}`;
+
+  async function request(query, { method = "GET", headers = {}, body } = {}) {
+    let response;
+    try {
+      response = await fetchImpl(`${base}?${query}`, {
+        method,
+        headers: { ...auth, ...(body ? { "Content-Type": "application/json" } : {}), ...headers },
+        body: body ? JSON.stringify(body) : undefined,
+        signal: AbortSignal.timeout(10_000),
+      });
+    } catch (error) {
+      throw new SupabaseError("network_error", error?.cause?.code ?? error?.name);
+    }
+    const text = await response.text();
+    let data = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = null;
+    }
+    // В текст ошибки — только код ответа и код PostgREST, без тела и ключа.
+    if (!response.ok) throw new SupabaseError(response.status, data?.code);
+    return data;
+  }
+
+  const row = (key, value) => ({ store, key, value, etag: randomUUID(), updated_at: new Date().toISOString() });
+
+  return {
+    async get(key) {
+      checkKey(key);
+      const rows = await request(`select=value,etag&${where(key)}`);
+      return rows?.length ? { value: rows[0].value, etag: rows[0].etag } : null;
+    },
+    async set(key, value, options = {}) {
+      checkKey(key);
+      checkConditions(options);
+      const data = row(key, JSON.parse(JSON.stringify(value)));
+
+      if (options.onlyIfMatch !== undefined) {
+        if (!UUID.test(options.onlyIfMatch)) return { ok: false };
+        const updated = await request(`${where(key)}&etag=${eq(options.onlyIfMatch)}`, {
+          method: "PATCH",
+          headers: { Prefer: "return=representation" },
+          body: { value: data.value, etag: data.etag, updated_at: data.updated_at },
+        });
+        return updated?.length ? { ok: true, etag: data.etag } : { ok: false };
+      }
+
+      const inserted = await request("on_conflict=store,key", {
+        method: "POST",
+        headers: { Prefer: `resolution=${options.onlyIfNew ? "ignore" : "merge"}-duplicates,return=representation` },
+        body: data,
+      });
+      return inserted?.length ? { ok: true, etag: data.etag } : { ok: false };
+    },
+    async delete(key) {
+      checkKey(key);
+      await request(where(key), { method: "DELETE" });
+    },
+    async list(prefix = "") {
+      // like в PostgREST: «*» — любые символы. «_» и «%» в префиксе — тоже шаблоны, поэтому результат дофильтровывается.
+      const filter = prefix ? `&key=like.${encodeURIComponent(`${prefix}*`)}` : "";
+      const keys = [];
+      for (let offset = 0; ; offset += PAGE) {
+        const rows = await request(`select=key&store=${eq(store)}${filter}&order=key.asc&limit=${PAGE}&offset=${offset}`);
+        keys.push(...rows.map((r) => r.key));
+        if (rows.length < PAGE) break;
+      }
+      return keys.filter((key) => key.startsWith(prefix)).sort();
+    },
+  };
+}
+
+export function getSupabaseConfig(env = process.env) {
+  const url = env.SUPABASE_URL?.trim();
+  const secretKey = env.SUPABASE_SECRET_KEY?.trim();
+  if (!url || !/^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)+\/?$/i.test(url)) throw new Error("Не задан корректный SUPABASE_URL.");
+  if (!secretKey) throw new Error("Не задан SUPABASE_SECRET_KEY.");
+  if (secretKey.startsWith("sb_publishable_")) {
+    throw new Error("В SUPABASE_SECRET_KEY указан публичный ключ (sb_publishable_…). Нужен секретный: sb_secret_… или service_role.");
+  }
+  return { url, secretKey, table: env.SUPABASE_TABLE?.trim() || "kv" };
+}
+
 // ---------- выбор драйвера ----------
 const memoryStores = new Map();
 let testDriver = null;
@@ -197,11 +303,14 @@ export function resetMemoryStores() {
 /** Открыть раздел хранилища по имени: leads, content, media, meta… */
 export async function openStore(name, env = process.env) {
   if (!STORE_NAME.test(name)) throw new TypeError(`Недопустимое имя хранилища: ${name}`);
-  const driver = testDriver ?? env.STORAGE_DRIVER ?? "blobs";
+  const driver = testDriver ?? env.STORAGE_DRIVER ?? "supabase";
 
   if (driver === "memory") {
     if (!memoryStores.has(name)) memoryStores.set(name, createMemoryStore());
     return memoryStores.get(name);
+  }
+  if (driver === "supabase") {
+    return createSupabaseStore({ ...getSupabaseConfig(env), store: name });
   }
   if (driver === "file") {
     const dir = env.STORAGE_DIR?.trim();
