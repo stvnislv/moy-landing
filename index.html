@@ -1175,11 +1175,41 @@ body { font-size: var(--step-0); }
   background: radial-gradient(circle at 35% 30%, #fff6e8, #e7b56a 60%, #b9773a);
   box-shadow: 0 0 16px rgba(255, 196, 120, 0.7);
 }
-@media (min-width: 768px) {
-  .work-feature { grid-template-columns: 1.1fr 1fr; }
-  .work-preview { order: 2; min-height: 15rem; }
-  .work-text { padding: 2.25rem; display: flex; flex-direction: column; justify-content: flex-end; }
+/* Один и тот же квадрат у каждой работы: интерфейс целиком, по центру, без рамки. */
+.work-shot {
+  width: 100%;
+  aspect-ratio: 1;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  overflow: hidden;
+  background: transparent;
 }
+.work-shot img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  max-width: none;
+  aspect-ratio: auto;
+  border-radius: 0;
+  object-fit: cover;
+  object-position: center;
+  filter: grayscale(1) blur(1.5px);
+  transition: filter 0.55s ease;
+}
+.work-feature:hover .work-shot img,
+.work-feature:focus-within .work-shot img {
+  filter: none;
+}
+@media (hover: none) {
+  .work-shot img { filter: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .work-shot img { transition: none; filter: none; }
+}
+.work-text { text-align: center; }
+.work-feature .desc { margin-inline: auto; }
 .work-invite {
   display: flex;
   flex-wrap: wrap;
@@ -1705,24 +1735,28 @@ const site = {
     {
       title: "Этот сайт",
       description: "Лендинг-портфолио: светлая и тёмная тема, стекло и живой свет.",
+      image: "works/site.jpg",
+      frame: "site",
     },
     {
       title: "Telegram-бот",
       description: "@stvnislv_bot: услуги, работы и заявка. Кнопка открывает приложение.",
       url: "https://t.me/stvnislv_bot",
-      preview: "bot",
+      image: "works/bot.jpg",
+      frame: "card",
     },
     {
       title: "Telegram-приложение",
       description: "Визитка внутри Telegram: услуги, работы и связь в одно касание.",
       url: "https://stvnislv-app.netlify.app/",
-      preview: "app",
+      image: "works/app.jpg",
     },
     {
       title: "FlipCar",
       description: "Игра: сальто на машине, кольца и мягкая посадка на сжатом воздухе.",
       url: "https://stvnislv.github.io/Flip-car/",
-      preview: "game",
+      image: "works/game.jpg",
+      frame: "wide",
     },
   ],
 
@@ -1992,11 +2026,13 @@ for (const work of site.portfolio) {
     card.append(preview);
   }
   if (work.image) {
+    const shot = el("div", "work-shot");
     const img = el("img");
     img.src = work.image;
     img.alt = "";
     img.loading = "lazy";
-    card.append(img);
+    shot.append(img);
+    card.append(shot);
   }
   text.append(el("h3", "", work.title), el("p", "desc", work.description));
   card.append(text);
