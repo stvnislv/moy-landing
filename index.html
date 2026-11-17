@@ -1089,12 +1089,20 @@ body { font-size: var(--step-0); }
   .split > .discount-badge + .services { margin-top: 1.5rem; }
 }
 
-/* Работы */
-.works { margin-top: 2.5rem; display: grid; gap: 1rem; }
+/* Работы: узкая стопка, чтобы плашки не занимали половину страницы. */
+.works {
+  margin-top: 2rem;
+  display: grid;
+  gap: 0.75rem;
+  width: min(100%, 19.5rem);
+  margin-inline: auto;
+  justify-self: center;
+}
 .work-feature { padding: 0; overflow: hidden; display: grid; }
-.work-text { padding: 1.75rem; }
-.work-feature h3 { font-size: var(--step-1); font-weight: 500; letter-spacing: -0.02em; }
-.work-feature .desc { margin-top: 0.5rem; color: var(--muted); max-width: 36ch; line-height: 1.6; }
+.work-text { padding: 0.85rem 1rem 1rem; text-align: center; }
+.work-feature h3 { font-size: 1.0625rem; font-weight: 500; letter-spacing: -0.02em; }
+.work-feature .desc { margin-top: 0.35rem; color: var(--muted); max-width: 32ch; line-height: 1.45; font-size: 0.9rem; }
+.work-feature .work-link { margin-top: 0.65rem; }
 /* Миниатюра первого экрана: щель и тёплый треугольник света на тёмном титане. */
 .work-preview {
   position: relative;
@@ -1175,8 +1183,9 @@ body { font-size: var(--step-0); }
   background: radial-gradient(circle at 35% 30%, #fff6e8, #e7b56a 60%, #b9773a);
   box-shadow: 0 0 16px rgba(255, 196, 120, 0.7);
 }
-/* Один и тот же квадрат у каждой работы: интерфейс целиком, по центру, без рамки. */
+/* Квадрат с интерфейсом целиком. До наведения его закрывает матовое стекло, сама картинка остаётся резкой. */
 .work-shot {
+  position: relative;
   width: 100%;
   aspect-ratio: 1;
   margin: 0;
@@ -1188,27 +1197,41 @@ body { font-size: var(--step-0); }
 .work-shot img {
   display: block;
   width: 100%;
-  height: 100%;
-  margin: 0;
+  height: calc(100% + 12px);
+  margin: -6px 0 0;
   max-width: none;
   aspect-ratio: auto;
   border-radius: 0;
   object-fit: cover;
   object-position: center;
-  filter: grayscale(1) blur(1.5px);
-  transition: filter 0.55s ease;
+  translate: 0 0;
+  transition: translate 1.8s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .work-feature:hover .work-shot img,
 .work-feature:focus-within .work-shot img {
-  filter: none;
+  translate: 0 -6px;
 }
+.work-shot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 252, 248, 0.03);
+  -webkit-backdrop-filter: blur(1.5px) saturate(1.05);
+  backdrop-filter: blur(1.5px) saturate(1.05);
+  transition: opacity 0.45s ease;
+  pointer-events: none;
+}
+html.night .work-shot::after { background: rgba(18, 18, 20, 0.04); }
+.work-feature:hover .work-shot::after,
+.work-feature:focus-within .work-shot::after { opacity: 0; }
 @media (hover: none) {
-  .work-shot img { filter: none; }
+  .work-shot::after { opacity: 0; }
+  .work-shot img { height: 100%; margin: 0; object-position: center; translate: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .work-shot img { transition: none; filter: none; }
+  .work-shot::after { transition: none; }
+  .work-shot img { height: 100%; margin: 0; object-position: center; translate: none; transition: none; }
 }
-.work-text { text-align: center; }
 .work-feature .desc { margin-inline: auto; }
 .work-invite {
   display: flex;
