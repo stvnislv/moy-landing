@@ -1127,6 +1127,17 @@ body { font-size: var(--step-0); }
   mask-image: linear-gradient(#000, transparent);
   filter: blur(8px);
 }
+/* Миниатюра бота: та же тёмная плашка, вместо щели — тёплая круглая кнопка. */
+.work-preview-bot::before {
+  top: 50%;
+  width: 3.25rem;
+  height: 3.25rem;
+  translate: -50% -50%;
+  border-radius: 999px;
+  background: radial-gradient(circle at 35% 30%, #fff6e8, #e7b56a 55%, #b9773a);
+  box-shadow: 0 0 24px rgba(255, 196, 120, 0.45);
+}
+.work-preview-bot::after { display: none; }
 @media (min-width: 768px) {
   .work-feature { grid-template-columns: 1.1fr 1fr; }
   .work-preview { order: 2; min-height: 15rem; }
@@ -1611,12 +1622,18 @@ const site = {
   // Стеклянная плашка над списком услуг. Пустая строка — плашки нет.
   discount: "Скидка 5%",
 
-  // Работы. Новый проект: { title, description, image: "works/имя.jpg", url: "https://…" }.
-  // Пока работ меньше трёх, остальные места занимают карточки «Здесь будет ваш проект».
+  // Работы. Новый проект: { title, description, image: "works/имя.jpg", url: "https://…", preview: "bot" }.
+  // preview: "bot" — миниатюра с тёплой кнопкой вместо щели первого экрана. Без картинки и без preview рисуется щель.
   portfolio: [
     {
       title: "Этот сайт",
       description: "Лендинг-портфолио: светлая и тёмная тема, стекло и живой свет.",
+    },
+    {
+      title: "Telegram-бот",
+      description: "@stvnislv_bot: услуги, работы и заявка. Кнопка открывает приложение.",
+      url: "https://t.me/stvnislv_bot",
+      preview: "bot",
     },
   ],
 
@@ -1881,7 +1898,7 @@ for (const work of site.portfolio) {
   const text = el("div", "work-text");
   if (!work.image) {
     // Пока нет скриншота, вместо него — миниатюра первого экрана: щель и тёплый свет.
-    const preview = el("div", "work-preview");
+    const preview = el("div", work.preview ? `work-preview work-preview-${work.preview}` : "work-preview");
     preview.setAttribute("aria-hidden", "true");
     card.append(preview);
   }
