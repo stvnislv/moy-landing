@@ -9,8 +9,9 @@
 <meta property="og:description" content="Stvnislv — цифровой мастер: сайты, приложения и ИИ‑агенты для экспертов и небольших компаний. Аккуратно, в срок, цена до начала работы.">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="ru_RU">
-<!-- После публикации замените на полный адрес картинки, например https://ваш-сайт.ru/hero-bg.jpg -->
-<meta property="og:image" content="hero-bg.jpg">
+<meta property="og:url" content="https://stvnislv.netlify.app/">
+<meta property="og:image" content="https://stvnislv.netlify.app/hero-bg.jpg">
+<link rel="canonical" href="https://stvnislv.netlify.app/">
 <!-- Цвет строки браузера. Скрипт меняет его вместе с темой дня и ночи. -->
 <meta name="theme-color" content="#f3f3f1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%2319191b'/%3E%3Ctext x='32' y='34' fill='%23f3f3f1' font-family='system-ui,sans-serif' font-size='34' font-weight='500' text-anchor='middle' dominant-baseline='middle'%3ES%3C/text%3E%3C/svg%3E">
@@ -1688,7 +1689,7 @@ html.night .header .bar.candy .nav a:not(.btn):is(:hover, :focus-visible) { back
       <ul class="services" data-services></ul>
       <p class="note muted">Точную цену назову, когда узнаю задачу.</p>
       <div class="payment-block">
-        <p class="note muted">Оплата доступна для уже согласованной услуги. Сейчас включён только тестовый режим.</p>
+        <p class="note muted">Оплата доступна для уже согласованной услуги.</p>
         <p class="note muted">Имя и почта будут переданы ЮKassa для оформления платежа.</p>
         <form id="payment-form" class="form payment-form" aria-label="Оплата согласованной услуги">
           <div class="field">
@@ -1788,13 +1789,15 @@ const site = {
   portfolio: [
     {
       title: "Этот сайт",
-      description: "Лендинг-портфолио: светлая и тёмная тема, стекло и живой свет.",
+      description: "Задача — показать услуги и принять заявку. Светлая и тёмная тема, заявка приходит в Telegram.",
       image: "works/site.webp",
       preview: "site",
+      url: "https://stvnislv.netlify.app/",
+      linkText: "Открыть сайт",
     },
     {
       title: "Telegram Mini App",
-      description: "Мини-приложение внутри Telegram: услуги и цены, работы и заявка в пару касаний.",
+      description: "Задача — визитка внутри Telegram. Клиент смотрит услуги и оставляет заявку, не выходя из мессенджера.",
       image: "works/miniapp.webp",
       preview: "app",
       url: "https://stvnislv-app.netlify.app/",
@@ -1802,7 +1805,7 @@ const site = {
     },
     {
       title: "Telegram-бот @stvnislv_bot",
-      description: "Открывает мини-приложение, принимает заявки и сразу передаёт их мне, а мои ответы — клиенту.",
+      description: "Задача — принимать заявки. Бот открывает мини-приложение и сразу передаёт заявку мне, а ответ — клиенту.",
       image: "works/bot.webp",
       preview: "bot",
       url: "https://t.me/stvnislv_bot",
